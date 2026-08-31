@@ -38,7 +38,7 @@ class User(Base):
 
     profile_image = Column(
         String(500),
-        nullable=False
+        nullable=True
     )
 
     bio = Column(
