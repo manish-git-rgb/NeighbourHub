@@ -2,22 +2,31 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
+
 class UserCreate(BaseModel):
     name: str
     username: str
-    email: EmailStr 
+    email: EmailStr
     password: str
 
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
 
 class UserResponse(BaseModel):
     id: int
     name: str
     username: str
-    email: EmailStr 
+    email: EmailStr
     profile_image: str | None = None
     bio: str | None = None
-    role: str 
+    role: str
     created_at: datetime
     updated_at: datetime
 
-    model_config  = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
