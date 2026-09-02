@@ -1,9 +1,17 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.security import hash_password, verify_password
 from app.models.user import User
 from app.schemas.user import UserCreate, UserLogin
+
+from datetime import datetime, timedelta, timezone
+
+from app.core.security import (
+    create_refresh_token,
+    hash_password,
+    verify_password,
+)
+from app.models.refresh_token import RefreshToken
 
 
 def create_user(db: Session, user_data: UserCreate) -> User:
@@ -70,3 +78,43 @@ def authenticate_user(db: Session, login_data: UserLogin) -> User:
         )
 
     return user
+
+def save_refresh_token(db: Session, user_id: int, token: str) -> RefreshToken:
+    refresh_token = RefreshToken(
+        user_id=user_id,
+        token=token,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+    )
+
+    db.add(refresh_token)
+    db.commit()
+    db.refresh(refresh_token)
+
+    return refresh_token
+
+
+def get_refresh_token(
+    db: Session,
+    token: str,
+) -> RefreshToken | None:
+    return (
+        db.query(RefreshToken)
+        .filter(RefreshToken.token == token)
+        .first()
+    )
+
+
+def revoke_refresh_token(
+    db: Session,
+    token: str,
+) -> bool:
+    refresh_token = get_refresh_token(db, token)
+
+    if not refresh_token:
+        return False
+
+    refresh_token.revoked = True
+
+    db.commit()
+
+    return True

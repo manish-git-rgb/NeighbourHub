@@ -1,22 +1,18 @@
 import os
 from datetime import datetime, timedelta, timezone
 
+from argon2 import PasswordHasher
+from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.models.user import User
-
-from argon2 import PasswordHasher
-from jose import JWTError, jwt
-from dotenv import load_dotenv
-
+from app.models.user import  User
 
 load_dotenv()
-
-bearer_scheme = HTTPBearer()
-
+ 
 password_hasher = PasswordHasher()
 
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -31,6 +27,10 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(
 )
 
 
+# -------------------------
+# Password hashing
+# -------------------------
+
 def hash_password(password: str) -> str:
     return password_hasher.hash(password)
 
@@ -43,6 +43,10 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
+# -------------------------
+# Access token
+# -------------------------
+
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
 
@@ -50,7 +54,12 @@ def create_access_token(data: dict) -> str:
         minutes=ACCESS_TOKEN_EXPIRE_MINUTES
     )
 
-    to_encode.update({"exp": expire})
+    to_encode.update(
+        {
+            "exp": expire,
+            "type": "access",
+        }
+    )
 
     return jwt.encode(
         to_encode,
@@ -58,6 +67,66 @@ def create_access_token(data: dict) -> str:
         algorithm=ALGORITHM,
     )
 
+
+# -------------------------
+# Refresh token
+# -------------------------
+
+def create_refresh_token(data: dict) -> str:
+    to_encode = data.copy()
+
+    expire = datetime.now(timezone.utc) + timedelta(days=7)
+
+    to_encode.update(
+        {
+            "exp": expire,
+            "type": "refresh",
+        }
+    )
+
+    return jwt.encode(
+        to_encode,
+        SECRET_KEY,
+        algorithm=ALGORITHM,
+    )
+
+
+def verify_refresh_token(token: str) -> str:
+    try:
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM],
+        )
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if payload.get("type") != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id = payload.get("sub")
+
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return user_id
+
+
+# -------------------------
+# Current authenticated user
+# -------------------------
 
 bearer_scheme = HTTPBearer()
 
@@ -78,6 +147,13 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if payload.get("type") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid access token",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
