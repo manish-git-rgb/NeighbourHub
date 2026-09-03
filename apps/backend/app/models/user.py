@@ -13,7 +13,7 @@ class User(Base):
     )
 
     name = Column(
-        String(20),
+        String(100),
         nullable=False
     )
 

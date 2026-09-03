@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.user import User
-from app.schemas.user import UserCreate, UserLogin
+from app.schemas.user import UserCreate, UserLogin, UserUpdate
 
 from datetime import datetime, timedelta, timezone
 
@@ -118,3 +118,59 @@ def revoke_refresh_token(
     db.commit()
 
     return True
+
+def update_user(
+    db: Session,
+    current_user: User,
+    user_data: UserUpdate,
+) -> User:
+
+    if user_data.username is not None:
+        existing_username = (
+            db.query(User)
+            .filter(
+                User.username == user_data.username,
+                User.id != current_user.id,
+            )
+            .first()
+        )
+
+        if existing_username:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Username already taken",
+            )
+
+        current_user.username = user_data.username
+
+    if user_data.email is not None:
+        existing_email = (
+            db.query(User)
+            .filter(
+                User.email == user_data.email,
+                User.id != current_user.id,
+            )
+            .first()
+        )
+
+        if existing_email:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email already registered",
+            )
+
+        current_user.email = user_data.email
+
+    if user_data.name is not None:
+        current_user.name = user_data.name
+
+    if user_data.profile_image is not None:
+        current_user.profile_image = user_data.profile_image
+
+    if user_data.bio is not None:
+        current_user.bio = user_data.bio
+
+    db.commit()
+    db.refresh(current_user)
+
+    return current_user

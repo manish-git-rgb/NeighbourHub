@@ -37,3 +37,10 @@ class UserResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+class UserUpdate(BaseModel):
+    name: str | None = None
+    username: str | None = None
+    email: EmailStr | None = None
+    profile_image: str | None = None
+    bio: str | None = None
