@@ -63,3 +63,64 @@ def get_post(
         )
 
     return post
+
+
+def update_post(
+    db: Session,
+    post_id: int,
+    user_id: int,
+    post_data: PostCreate,
+) -> Post:
+    post = (
+        db.query(Post)
+        .filter(Post.id == post_id)
+        .first()
+    )
+
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Post not found",
+        )
+
+    if post.user_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not allowed to update this post",
+        )
+
+    post.category = post_data.category
+    post.title = post_data.title
+    post.content = post_data.content
+    post.visibility = post_data.visibility
+
+    db.commit()
+    db.refresh(post)
+
+    return post
+
+def delete_post(
+    db: Session,
+    post_id: int,
+    user_id: int,
+) -> None:
+    post = (
+        db.query(Post)
+        .filter(Post.id == post_id)
+        .first()
+    )
+
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Post not found",
+        )
+
+    if post.user_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not allowed to delete this post",
+        )
+
+    db.delete(post)
+    db.commit()

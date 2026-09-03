@@ -1,6 +1,7 @@
 from sqlalchemy import (
     Column,
     DateTime,
+    Enum,
     ForeignKey,
     Integer,
     String,
@@ -8,6 +9,7 @@ from sqlalchemy import (
     func,
 )
 
+from app.core.enums import PostCategory, PostStatus, PostVisibility
 from app.db.database import Base
 
 
@@ -28,7 +30,7 @@ class Post(Base):
     )
 
     category = Column(
-        String(30),
+        Enum(PostCategory, name="post_category"),
         nullable=False,
         index=True,
     )
@@ -44,15 +46,15 @@ class Post(Base):
     )
 
     visibility = Column(
-        String(20),
+        Enum(PostVisibility, name="post_visibility"),
         nullable=False,
-        default="NEIGHBORHOOD",
+        default=PostVisibility.NEIGHBORHOOD,
     )
 
     status = Column(
-        String(20),
+        Enum(PostStatus, name="post_status"),
         nullable=False,
-        default="ACTIVE",
+        default=PostStatus.ACTIVE,
     )
 
     created_at = Column(

@@ -2,23 +2,24 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.core.enums import PostCategory, PostVisibility
 from app.schemas.common import Pagination
 
 
 class PostCreate(BaseModel):
-    category: str
+    category: PostCategory
     title: str
     content: str
-    visibility: str = "NEIGHBORHOOD"
+    visibility: PostVisibility = PostVisibility.NEIGHBORHOOD
 
 
 class PostResponse(BaseModel):
     id: int
     user_id: int
-    category: str
+    category: PostCategory
     title: str
     content: str
-    visibility: str
+    visibility: PostVisibility
     status: str
     created_at: datetime
     updated_at: datetime
