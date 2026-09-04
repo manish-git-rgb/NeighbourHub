@@ -7,7 +7,8 @@ from app.schemas.user import UserResponse, UserUpdate
 from app.services.user_service import update_user
 
 from sqlalchemy.orm import Session
-
+from app.schemas.neighborhood import NeighborhoodMembershipResponse
+from app.services.neighborhood_service import get_user_neighborhoods
 
 router = APIRouter(
     prefix="/users",
@@ -38,4 +39,18 @@ def update_me(
         db=db,
         current_user=current_user,
         user_data=user_data,
+    )
+
+
+@router.get(
+    "/me/neighborhoods",
+    response_model=list[NeighborhoodMembershipResponse],
+)
+def get_my_neighborhoods(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return get_user_neighborhoods(
+        db=db,
+        user_id=current_user.id,
     )
