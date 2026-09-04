@@ -3,6 +3,11 @@ from sqlalchemy.orm import Session
 from app.models.user_neighborhood import UserNeighborhood
 from app.models.neighborhood import Neighborhood
 from app.schemas.neighborhood import NeighborhoodCreate
+from geoalchemy2.shape import from_shape
+from shapely.geometry import Point
+from sqlalchemy import func
+from geoalchemy2 import Geography
+
 
 
 def create_neighborhood(
@@ -33,6 +38,14 @@ def create_neighborhood(
             detail="Neighborhood slug already exists",
         )
 
+    location = from_shape(
+        Point(
+            neighborhood_data.longitude,
+            neighborhood_data.latitude,
+        ),
+        srid=4326,
+    )
+
     neighborhood = Neighborhood(
         name=neighborhood_data.name,
         slug=neighborhood_data.slug,
@@ -40,6 +53,7 @@ def create_neighborhood(
         city=neighborhood_data.city,
         state=neighborhood_data.state,
         country=neighborhood_data.country,
+        location=location,
     )
 
     db.add(neighborhood)
@@ -139,5 +153,39 @@ def get_user_neighborhoods(
         db.query(UserNeighborhood)
         .filter(UserNeighborhood.user_id == user_id)
         .order_by(UserNeighborhood.joined_at.desc())
+        .all()
+    )
+
+
+def get_nearby_neighborhoods(
+    db: Session,
+    latitude: float,
+    longitude: float,
+    radius_km: float = 5,
+) -> list[Neighborhood]:
+
+    user_point = func.ST_SetSRID(
+        func.ST_MakePoint(longitude, latitude),
+        4326,
+    )
+
+    radius_meters = radius_km * 1000
+
+    return (
+        db.query(Neighborhood)
+        .filter(
+            Neighborhood.location.isnot(None),
+            func.ST_DWithin(
+                func.Geography(Neighborhood.location),
+                func.Geography(user_point),
+                radius_meters,
+            ),
+        )
+        .order_by(
+            func.ST_Distance(
+                func.Geography(Neighborhood.location),
+                func.Geography(user_point),
+            )
+        )
         .all()
     )

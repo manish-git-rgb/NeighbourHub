@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class NeighborhoodCreate(BaseModel):
@@ -11,6 +11,16 @@ class NeighborhoodCreate(BaseModel):
     state: str | None = None
     country: str
 
+    latitude: float = Field(
+        ge=-90,
+        le=90,
+    )
+
+    longitude: float = Field(
+        ge=-180,
+        le=180,
+    )
+
 
 class NeighborhoodResponse(BaseModel):
     id: int
@@ -20,6 +30,10 @@ class NeighborhoodResponse(BaseModel):
     city: str
     state: str | None = None
     country: str
+
+    latitude: float | None = None
+    longitude: float | None = None
+
     created_at: datetime
     updated_at: datetime
 
