@@ -1,7 +1,6 @@
 from sqlalchemy import (
     Column,
     DateTime,
-    Enum,
     ForeignKey,
     Integer,
     String,
@@ -10,13 +9,11 @@ from sqlalchemy import (
 )
 from geoalchemy2 import Geometry
 from geoalchemy2.shape import to_shape
-
-from app.core.enums import PostCategory, PostStatus, PostVisibility
 from app.db.database import Base
 
 
-class Post(Base):
-    __tablename__ = "posts"
+class Event(Base):
+    __tablename__ = "events"
 
     id = Column(
         Integer,
@@ -31,32 +28,19 @@ class Post(Base):
         index=True,
     )
 
-    category = Column(
-        Enum(PostCategory, name="post_category"),
-        nullable=False,
-        index=True,
-    )
-
     title = Column(
         String(200),
         nullable=False,
     )
 
-    content = Column(
+    description = Column(
         Text,
         nullable=False,
     )
 
-    visibility = Column(
-        Enum(PostVisibility, name="post_visibility"),
+    location_name = Column(
+        String(200),
         nullable=False,
-        default=PostVisibility.NEIGHBORHOOD,
-    )
-
-    status = Column(
-        Enum(PostStatus, name="post_status"),
-        nullable=False,
-        default=PostStatus.ACTIVE,
     )
 
     location = Column(
@@ -66,6 +50,22 @@ class Post(Base):
             spatial_index=True,
         ),
         nullable=True,
+    )
+
+    start_time = Column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+
+    end_time = Column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    status = Column(
+        String(20),
+        nullable=False,
+        default="ACTIVE",
     )
 
     created_at = Column(

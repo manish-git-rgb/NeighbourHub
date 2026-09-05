@@ -2,16 +2,21 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.enums import PostCategory, PostVisibility
-from app.schemas.common import Pagination
 
+class EventCreate(BaseModel):
+    title: str = Field(
+        min_length=1,
+        max_length=200,
+    )
 
-class PostCreate(BaseModel):
-    category: PostCategory
-    title: str
-    content: str
+    description: str = Field(
+        min_length=1,
+    )
 
-    visibility: PostVisibility = PostVisibility.NEIGHBORHOOD
+    location_name: str = Field(
+        min_length=1,
+        max_length=200,
+    )
 
     latitude: float = Field(
         ge=-90,
@@ -23,41 +28,43 @@ class PostCreate(BaseModel):
         le=180,
     )
 
+    start_time: datetime
 
-class PostResponse(BaseModel):
+    end_time: datetime | None = None
+
+
+class EventResponse(BaseModel):
     id: int
     user_id: int
-    category: PostCategory
     title: str
-    content: str
-    visibility: PostVisibility
-    status: str
+    description: str
+    location_name: str
 
     latitude: float | None = None
     longitude: float | None = None
 
+    start_time: datetime
+    end_time: datetime | None = None
+    status: str
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class PostListResponse(BaseModel):
-    success: bool
-    data: list[PostResponse]
-    pagination: Pagination
-
-class NearbyPostResponse(BaseModel):
+class NearbyEventResponse(BaseModel):
     id: int
     user_id: int
-    category: PostCategory
     title: str
-    content: str
-    visibility: PostVisibility
-    status: str
+    description: str
+    location_name: str
 
     latitude: float | None = None
     longitude: float | None = None
+
+    start_time: datetime
+    end_time: datetime | None = None
+    status: str
     distance_km: float
 
     created_at: datetime
