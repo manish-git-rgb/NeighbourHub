@@ -33,6 +33,41 @@ class EventCreate(BaseModel):
     end_time: datetime | None = None
 
 
+class EventUpdate(BaseModel):
+    title: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=200,
+    )
+
+    description: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+
+    location_name: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=200,
+    )
+
+    latitude: float | None = Field(
+        default=None,
+        ge=-90,
+        le=90,
+    )
+
+    longitude: float | None = Field(
+        default=None,
+        ge=-180,
+        le=180,
+    )
+
+    start_time: datetime | None = None
+
+    end_time: datetime | None = None
+
+
 class EventResponse(BaseModel):
     id: int
     user_id: int
@@ -71,3 +106,9 @@ class NearbyEventResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class EventListResponse(BaseModel):
+    success: bool
+    data: list[EventResponse]
+    pagination: dict
