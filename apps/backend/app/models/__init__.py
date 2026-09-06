@@ -9,3 +9,7 @@ from app.models.place import Place
 from app.models.service_provider import ServiceProvider
 from app.models.recommendation import Recommendation
 from app.models.lost_found import LostFound
+from app.models.issue_report import IssueReport
+
+
+
