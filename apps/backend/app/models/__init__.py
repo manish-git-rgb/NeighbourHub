@@ -4,3 +4,4 @@ from app.models.post import Post
 from app.models.neighborhood import Neighborhood
 from app.models.user_neighborhood import UserNeighborhood
 from app.models.event import Event
+from app.models.event_rsvp import EventRSVP

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.event import Event
 from app.schemas.event import EventCreate, EventUpdate
+from app.models.event_rsvp import EventRSVP
 
 
 def create_event(
@@ -236,3 +237,101 @@ def delete_event(
 
     db.delete(event)
     db.commit()
+
+
+def create_rsvp(
+    db: Session,
+    event_id: int,
+    user_id: int,
+) -> EventRSVP:
+    event = (
+        db.query(Event)
+        .filter(Event.id == event_id)
+        .first()
+    )
+
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    if event.status != "ACTIVE":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Event is not active",
+        )
+
+    existing_rsvp = (
+        db.query(EventRSVP)
+        .filter(
+            EventRSVP.event_id == event_id,
+            EventRSVP.user_id == user_id,
+        )
+        .first()
+    )
+
+    if existing_rsvp:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Already RSVP'd to this event",
+        )
+
+    rsvp = EventRSVP(
+        event_id=event_id,
+        user_id=user_id,
+    )
+
+    db.add(rsvp)
+    db.commit()
+    db.refresh(rsvp)
+
+    return rsvp
+
+
+def delete_rsvp(
+    db: Session,
+    event_id: int,
+    user_id: int,
+) -> None:
+    rsvp = (
+        db.query(EventRSVP)
+        .filter(
+            EventRSVP.event_id == event_id,
+            EventRSVP.user_id == user_id,
+        )
+        .first()
+    )
+
+    if not rsvp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="RSVP not found",
+        )
+
+    db.delete(rsvp)
+    db.commit()
+
+
+def get_event_attendees(
+    db: Session,
+    event_id: int,
+) -> list[EventRSVP]:
+    event = (
+        db.query(Event)
+        .filter(Event.id == event_id)
+        .first()
+    )
+
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+
+    return (
+        db.query(EventRSVP)
+        .filter(EventRSVP.event_id == event_id)
+        .order_by(EventRSVP.created_at.asc())
+        .all()
+    )

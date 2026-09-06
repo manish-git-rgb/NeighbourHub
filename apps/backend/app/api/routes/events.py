@@ -9,15 +9,19 @@ from app.schemas.event import (
     EventResponse,
     NearbyEventResponse,
     EventListResponse,
-    EventUpdate
+    EventUpdate,
+    RSVPResponse
 )
 from app.services.event_service import (
     create_event,
+    create_rsvp,
+    delete_event,
+    delete_rsvp,
     get_event,
+    get_event_attendees,
     get_events,
     get_nearby_events,
-    update_event,
-    delete_event,
+    update_event
 )
 
 
@@ -198,4 +202,63 @@ def delete_existing_event(
         db=db,
         event_id=event_id,
         user_id=current_user.id,
+    )
+
+
+# ---------------------------------
+# RSVP to Event
+# ---------------------------------
+
+@router.post(
+    "/{event_id}/rsvp",
+    response_model=RSVPResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def rsvp_to_event(
+    event_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return create_rsvp(
+        db=db,
+        event_id=event_id,
+        user_id=current_user.id,
+    )
+
+
+# ---------------------------------
+# Cancel RSVP
+# ---------------------------------
+
+@router.delete(
+    "/{event_id}/rsvp",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def cancel_rsvp(
+    event_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    delete_rsvp(
+        db=db,
+        event_id=event_id,
+        user_id=current_user.id,
+    )
+
+
+# ---------------------------------
+# Event Attendees
+# ---------------------------------
+
+@router.get(
+    "/{event_id}/attendees",
+    response_model=list[RSVPResponse],
+)
+def list_event_attendees(
+    event_id: int,
+    db: Session = Depends(get_db),
+):
+    return get_event_attendees(
+        db=db,
+        event_id=event_id,
     )
