@@ -10,6 +10,7 @@ from app.api.routes.service_providers import router as service_providers_router
 from app.api.routes.recommendations import router as recommendations_router
 from app.api.routes.lost_found import router as lost_found_router
 from app.api.routes.issue_reports import router as issue_reports_router
+from app.api.routes.comments import router as comments_router
 
 app = FastAPI(title="NeighborHub API")
 
@@ -64,6 +65,10 @@ app.include_router(
     prefix="/api/v1",
 )
 
+app.include_router(
+    comments_router,
+    prefix="/api/v1",
+)
 
 @app.get("/")
 def root():
