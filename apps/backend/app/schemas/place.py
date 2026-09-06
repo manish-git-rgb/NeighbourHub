@@ -3,19 +3,24 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class EventCreate(BaseModel):
-    title: str = Field(
+class PlaceCreate(BaseModel):
+    name: str = Field(
         min_length=1,
         max_length=200,
     )
 
-    description: str = Field(
-        min_length=1,
+    description: str | None = Field(
+        default=None,
     )
 
-    location_name: str = Field(
+    category: str = Field(
         min_length=1,
-        max_length=200,
+        max_length=50,
+    )
+
+    address: str | None = Field(
+        default=None,
+        max_length=300,
     )
 
     latitude: float = Field(
@@ -30,27 +35,25 @@ class EventCreate(BaseModel):
 
     neighborhood_id: int | None = None
 
-    start_time: datetime
 
-    end_time: datetime | None = None
-
-
-class EventUpdate(BaseModel):
-    title: str | None = Field(
+class PlaceUpdate(BaseModel):
+    name: str | None = Field(
         default=None,
         min_length=1,
         max_length=200,
     )
 
-    description: str | None = Field(
+    description: str | None = None
+
+    category: str | None = Field(
         default=None,
         min_length=1,
+        max_length=50,
     )
 
-    location_name: str | None = Field(
+    address: str | None = Field(
         default=None,
-        min_length=1,
-        max_length=200,
+        max_length=300,
     )
 
     latitude: float | None = Field(
@@ -67,62 +70,35 @@ class EventUpdate(BaseModel):
 
     neighborhood_id: int | None = None
 
-    start_time: datetime | None = None
 
-    end_time: datetime | None = None
-
-
-class EventResponse(BaseModel):
+class PlaceResponse(BaseModel):
     id: int
     user_id: int
-    title: str
-    description: str
-    location_name: str
-
-    latitude: float | None = None
-    longitude: float | None = None
-
-    start_time: datetime
-    end_time: datetime | None = None
-    status: str
     neighborhood_id: int | None = None
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class NearbyEventResponse(BaseModel):
-    id: int
-    user_id: int
-    title: str
-    description: str
-    location_name: str
-
+    name: str
+    description: str | None = None
+    category: str
+    address: str | None = None
     latitude: float | None = None
     longitude: float | None = None
-
-    start_time: datetime
-    end_time: datetime | None = None
-    status: str
-    distance_km: float
-
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class EventListResponse(BaseModel):
-    success: bool
-    data: list[EventResponse]
-    pagination: dict
-
-
-class RSVPResponse(BaseModel):
+class NearbyPlaceResponse(BaseModel):
     id: int
-    event_id: int
     user_id: int
+    neighborhood_id: int | None = None
+    name: str
+    description: str | None = None
+    category: str
+    address: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    distance_km: float
     created_at: datetime
+    updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

@@ -5,8 +5,9 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.event import Event
-from app.schemas.event import EventCreate, EventUpdate
 from app.models.event_rsvp import EventRSVP
+from app.models.neighborhood import Neighborhood
+from app.schemas.event import EventCreate, EventUpdate
 
 
 def create_event(
@@ -24,6 +25,24 @@ def create_event(
             detail="End time must be after start time",
         )
 
+    # Validate neighborhood if provided
+    neighborhood = None
+
+    if event_data.neighborhood_id is not None:
+        neighborhood = (
+            db.query(Neighborhood)
+            .filter(
+                Neighborhood.id == event_data.neighborhood_id
+            )
+            .first()
+        )
+
+        if not neighborhood:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Neighborhood not found",
+            )
+
     # Convert latitude/longitude into PostGIS POINT
     location = from_shape(
         Point(
@@ -35,6 +54,7 @@ def create_event(
 
     event = Event(
         user_id=user_id,
+        neighborhood_id=event_data.neighborhood_id,
         title=event_data.title,
         description=event_data.description,
         location_name=event_data.location_name,
@@ -163,12 +183,14 @@ def update_event(
             detail="Event not found",
         )
 
+    # Ownership check
     if event.user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not allowed to update this event",
         )
 
+    # Validate updated event time
     if (
         event_data.start_time is not None
         and event_data.end_time is not None
@@ -178,6 +200,24 @@ def update_event(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="End time must be after start time",
         )
+
+    # Validate and update neighborhood
+    if event_data.neighborhood_id is not None:
+        neighborhood = (
+            db.query(Neighborhood)
+            .filter(
+                Neighborhood.id == event_data.neighborhood_id
+            )
+            .first()
+        )
+
+        if not neighborhood:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Neighborhood not found",
+            )
+
+        event.neighborhood_id = event_data.neighborhood_id
 
     if event_data.title is not None:
         event.title = event_data.title

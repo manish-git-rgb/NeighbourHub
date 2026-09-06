@@ -5,6 +5,7 @@ from app.api.routes.posts import router as posts_router
 from app.api.routes.users import router as users_router
 from app.api.routes.neighborhoods import router as neighborhoods_router
 from app.api.routes.events import router as events_router
+from app.api.routes.places import router as places_router
 
 app = FastAPI(title="NeighborHub API")
 
@@ -26,6 +27,11 @@ app.include_router(
 
 app.include_router(
     neighborhoods_router,
+    prefix="/api/v1",
+)
+
+app.include_router(
+    places_router,
     prefix="/api/v1",
 )
 

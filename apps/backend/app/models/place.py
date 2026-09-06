@@ -8,12 +8,12 @@ from sqlalchemy import (
     func,
 )
 from geoalchemy2 import Geometry
-from geoalchemy2.shape import to_shape
+
 from app.db.database import Base
 
 
-class Event(Base):
-    __tablename__ = "events"
+class Place(Base):
+    __tablename__ = "places"
 
     id = Column(
         Integer,
@@ -35,19 +35,25 @@ class Event(Base):
         index=True,
     )
 
-    title = Column(
+    name = Column(
         String(200),
         nullable=False,
     )
 
     description = Column(
         Text,
-        nullable=False,
+        nullable=True,
     )
 
-    location_name = Column(
-        String(200),
+    category = Column(
+        String(50),
         nullable=False,
+        index=True,
+    )
+
+    address = Column(
+        String(300),
+        nullable=True,
     )
 
     location = Column(
@@ -57,22 +63,6 @@ class Event(Base):
             spatial_index=True,
         ),
         nullable=True,
-    )
-
-    start_time = Column(
-        DateTime(timezone=True),
-        nullable=False,
-    )
-
-    end_time = Column(
-        DateTime(timezone=True),
-        nullable=True,
-    )
-
-    status = Column(
-        String(20),
-        nullable=False,
-        default="ACTIVE",
     )
 
     created_at = Column(
@@ -93,12 +83,15 @@ class Event(Base):
         if self.location is None:
             return None
 
-        return float(to_shape(self.location).y)
+        from geoalchemy2.shape import to_shape
 
+        return float(to_shape(self.location).y)
 
     @property
     def longitude(self) -> float | None:
         if self.location is None:
             return None
+
+        from geoalchemy2.shape import to_shape
 
         return float(to_shape(self.location).x)
