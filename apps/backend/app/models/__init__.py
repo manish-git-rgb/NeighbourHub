@@ -7,5 +7,5 @@ from app.models.event import Event
 from app.models.event_rsvp import EventRSVP
 from app.models.place import Place
 from app.models.service_provider import ServiceProvider
-
+from app.models.recommendation import Recommendation
 
