@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.models.comment import Comment
 from app.models.post import Post
 from app.schemas.comment import CommentCreate, CommentUpdate
+from app.services.notification_service import create_notification
 
 
 def create_comment(
@@ -33,6 +34,16 @@ def create_comment(
     db.add(comment)
     db.commit()
     db.refresh(comment)
+
+    # Notify the post owner when another user comments.
+    if post.user_id != user_id:
+        create_notification(
+            db=db,
+            user_id=post.user_id,
+            notification_type="COMMENT",
+            title="New comment on your post",
+            message=f"Someone commented on your post: {comment.content}",
+        )
 
     return comment
 

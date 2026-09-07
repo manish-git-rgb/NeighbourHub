@@ -1,9 +1,11 @@
 from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.post import Post
 from app.models.reaction import Reaction
 from app.schemas.reaction import ReactionCreate
+from app.services.notification_service import create_notification
 
 
 VALID_REACTION_TYPES = {
@@ -75,14 +77,29 @@ def create_reaction(
 
     try:
         db.commit()
-    except Exception:
+
+    except IntegrityError:
         db.rollback()
+
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="You have already reacted to this post",
         )
 
     db.refresh(reaction)
+
+    # Notify the post owner when another user reacts.
+    if post.user_id != user_id:
+        create_notification(
+            db=db,
+            user_id=post.user_id,
+            notification_type="REACTION",
+            title="New reaction on your post",
+            message=(
+                f"Someone reacted to your post "
+                f"with {reaction_type}."
+            ),
+        )
 
     return reaction
 

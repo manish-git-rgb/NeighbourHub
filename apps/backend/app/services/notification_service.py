@@ -1,4 +1,3 @@
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.notification import Notification
@@ -7,26 +6,26 @@ from app.models.user import User
 
 def create_notification(
     db: Session,
-    notification_data,
+    user_id: int,
+    notification_type: str,
+    title: str,
+    message: str,
 ) -> Notification:
 
     user = (
         db.query(User)
-        .filter(User.id == notification_data.user_id)
+        .filter(User.id == user_id)
         .first()
     )
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
+        return None
 
     notification = Notification(
-        user_id=notification_data.user_id,
-        type=notification_data.type,
-        title=notification_data.title,
-        message=notification_data.message,
+        user_id=user_id,
+        type=notification_type,
+        title=title,
+        message=message,
         is_read=False,
     )
 
@@ -75,7 +74,7 @@ def get_notification(
     user_id: int,
 ) -> Notification:
 
-    notification = (
+    return (
         db.query(Notification)
         .filter(
             Notification.id == notification_id,
@@ -83,14 +82,6 @@ def get_notification(
         )
         .first()
     )
-
-    if not notification:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Notification not found",
-        )
-
-    return notification
 
 
 def mark_notification_as_read(
@@ -104,6 +95,14 @@ def mark_notification_as_read(
         notification_id,
         user_id,
     )
+
+    if not notification:
+        from fastapi import HTTPException, status
+
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Notification not found",
+        )
 
     notification.is_read = True
 
@@ -124,6 +123,14 @@ def delete_notification(
         notification_id,
         user_id,
     )
+
+    if not notification:
+        from fastapi import HTTPException, status
+
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Notification not found",
+        )
 
     db.delete(notification)
     db.commit()

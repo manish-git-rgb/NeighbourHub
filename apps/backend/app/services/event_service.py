@@ -8,14 +8,19 @@ from app.models.event import Event
 from app.models.event_rsvp import EventRSVP
 from app.models.neighborhood import Neighborhood
 from app.schemas.event import EventCreate, EventUpdate
+from app.services.notification_service import create_notification
 
+
+# -------------------------
+# Create Event
+# -------------------------
 
 def create_event(
     db: Session,
     user_id: int,
     event_data: EventCreate,
 ) -> Event:
-    # Validate event time range
+
     if (
         event_data.end_time is not None
         and event_data.end_time <= event_data.start_time
@@ -24,9 +29,6 @@ def create_event(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="End time must be after start time",
         )
-
-    # Validate neighborhood if provided
-    neighborhood = None
 
     if event_data.neighborhood_id is not None:
         neighborhood = (
@@ -43,7 +45,6 @@ def create_event(
                 detail="Neighborhood not found",
             )
 
-    # Convert latitude/longitude into PostGIS POINT
     location = from_shape(
         Point(
             event_data.longitude,
@@ -71,11 +72,15 @@ def create_event(
     return event
 
 
+# -------------------------
+# List Events
+# -------------------------
+
 def get_events(
     db: Session,
     page: int = 1,
     limit: int = 20,
-) -> tuple[list[Event], int]:
+):
     offset = (page - 1) * limit
 
     total = db.query(Event).count()
@@ -91,10 +96,15 @@ def get_events(
     return events, total
 
 
+# -------------------------
+# Get Single Event
+# -------------------------
+
 def get_event(
     db: Session,
     event_id: int,
 ) -> Event:
+
     event = (
         db.query(Event)
         .filter(Event.id == event_id)
@@ -110,6 +120,10 @@ def get_event(
     return event
 
 
+# -------------------------
+# Nearby Events
+# -------------------------
+
 def get_nearby_events(
     db: Session,
     latitude: float,
@@ -118,7 +132,6 @@ def get_nearby_events(
     page: int = 1,
     limit: int = 20,
 ):
-    # Create geographic point from user's coordinates
     user_point = func.ST_SetSRID(
         func.ST_MakePoint(
             longitude,
@@ -129,7 +142,6 @@ def get_nearby_events(
 
     radius_meters = radius_km * 1000
 
-    # Calculate distance in meters
     distance = func.ST_Distance(
         func.Geography(Event.location),
         func.Geography(user_point),
@@ -165,12 +177,17 @@ def get_nearby_events(
     )
 
 
+# -------------------------
+# Update Event
+# -------------------------
+
 def update_event(
     db: Session,
     event_id: int,
     user_id: int,
     event_data: EventUpdate,
 ) -> Event:
+
     event = (
         db.query(Event)
         .filter(Event.id == event_id)
@@ -183,25 +200,13 @@ def update_event(
             detail="Event not found",
         )
 
-    # Ownership check
     if event.user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not allowed to update this event",
         )
 
-    # Validate updated event time
-    if (
-        event_data.start_time is not None
-        and event_data.end_time is not None
-        and event_data.end_time <= event_data.start_time
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="End time must be after start time",
-        )
-
-    # Validate and update neighborhood
+    # Validate neighborhood
     if event_data.neighborhood_id is not None:
         neighborhood = (
             db.query(Neighborhood)
@@ -219,6 +224,7 @@ def update_event(
 
         event.neighborhood_id = event_data.neighborhood_id
 
+    # Update normal fields
     if event_data.title is not None:
         event.title = event_data.title
 
@@ -228,6 +234,23 @@ def update_event(
     if event_data.location_name is not None:
         event.location_name = event_data.location_name
 
+    if event_data.start_time is not None:
+        event.start_time = event_data.start_time
+
+    if event_data.end_time is not None:
+        event.end_time = event_data.end_time
+
+    # Validate dates after updates
+    if (
+        event.end_time is not None
+        and event.end_time <= event.start_time
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="End time must be after start time",
+        )
+
+    # Update location only when both coordinates are supplied
     if (
         event_data.latitude is not None
         and event_data.longitude is not None
@@ -240,23 +263,22 @@ def update_event(
             srid=4326,
         )
 
-    if event_data.start_time is not None:
-        event.start_time = event_data.start_time
-
-    if event_data.end_time is not None:
-        event.end_time = event_data.end_time
-
     db.commit()
     db.refresh(event)
 
     return event
 
 
+# -------------------------
+# Delete Event
+# -------------------------
+
 def delete_event(
     db: Session,
     event_id: int,
     user_id: int,
 ) -> None:
+
     event = (
         db.query(Event)
         .filter(Event.id == event_id)
@@ -279,11 +301,16 @@ def delete_event(
     db.commit()
 
 
+# -------------------------
+# Create RSVP
+# -------------------------
+
 def create_rsvp(
     db: Session,
     event_id: int,
     user_id: int,
 ) -> EventRSVP:
+
     event = (
         db.query(Event)
         .filter(Event.id == event_id)
@@ -299,10 +326,10 @@ def create_rsvp(
     if event.status != "ACTIVE":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Event is not active",
+            detail="Cannot RSVP to an inactive event",
         )
 
-    existing_rsvp = (
+    existing = (
         db.query(EventRSVP)
         .filter(
             EventRSVP.event_id == event_id,
@@ -311,10 +338,10 @@ def create_rsvp(
         .first()
     )
 
-    if existing_rsvp:
+    if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Already RSVP'd to this event",
+            detail="You have already RSVP'd to this event",
         )
 
     rsvp = EventRSVP(
@@ -326,14 +353,34 @@ def create_rsvp(
     db.commit()
     db.refresh(rsvp)
 
+    # -------------------------
+    # Automatic notification
+    # -------------------------
+
+    # Don't notify the event owner if they RSVP to
+    # their own event.
+    if event.user_id != user_id:
+        create_notification(
+            db=db,
+            user_id=event.user_id,
+            notification_type="EVENT_RSVP",
+            title="New RSVP for your event",
+            message=f"Someone joined your event: {event.title}",
+        )
+
     return rsvp
 
+
+# -------------------------
+# Delete RSVP
+# -------------------------
 
 def delete_rsvp(
     db: Session,
     event_id: int,
     user_id: int,
 ) -> None:
+
     rsvp = (
         db.query(EventRSVP)
         .filter(
@@ -353,10 +400,15 @@ def delete_rsvp(
     db.commit()
 
 
+# -------------------------
+# Get Event Attendees
+# -------------------------
+
 def get_event_attendees(
     db: Session,
     event_id: int,
-) -> list[EventRSVP]:
+):
+
     event = (
         db.query(Event)
         .filter(Event.id == event_id)
@@ -369,9 +421,11 @@ def get_event_attendees(
             detail="Event not found",
         )
 
-    return (
+    attendees = (
         db.query(EventRSVP)
         .filter(EventRSVP.event_id == event_id)
         .order_by(EventRSVP.created_at.asc())
         .all()
     )
+
+    return attendees
