@@ -1,4 +1,5 @@
 import os
+
 from datetime import datetime, timedelta, timezone
 
 from argon2 import PasswordHasher
@@ -9,18 +10,23 @@ from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.models.user import  User
+from app.models.user import User
+
 
 load_dotenv()
- 
+
+
 password_hasher = PasswordHasher()
+
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 if not SECRET_KEY:
     raise ValueError("SECRET_KEY is not set")
 
+
 ALGORITHM = "HS256"
+
 
 ACCESS_TOKEN_EXPIRE_MINUTES = int(
     os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
@@ -35,9 +41,15 @@ def hash_password(password: str) -> str:
     return password_hasher.hash(password)
 
 
-def verify_password(password: str, password_hash: str) -> bool:
+def verify_password(
+    password: str,
+    password_hash: str,
+) -> bool:
     try:
-        password_hasher.verify(password_hash, password)
+        password_hasher.verify(
+            password_hash,
+            password,
+        )
         return True
     except Exception:
         return False
@@ -75,7 +87,9 @@ def create_access_token(data: dict) -> str:
 def create_refresh_token(data: dict) -> str:
     to_encode = data.copy()
 
-    expire = datetime.now(timezone.utc) + timedelta(days=7)
+    expire = datetime.now(timezone.utc) + timedelta(
+        days=7
+    )
 
     to_encode.update(
         {
@@ -98,6 +112,7 @@ def verify_refresh_token(token: str) -> str:
             SECRET_KEY,
             algorithms=[ALGORITHM],
         )
+
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -132,9 +147,12 @@ bearer_scheme = HTTPBearer()
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(
+        bearer_scheme
+    ),
     db: Session = Depends(get_db),
 ) -> User:
+
     token = credentials.credentials
 
     try:
@@ -143,6 +161,7 @@ def get_current_user(
             SECRET_KEY,
             algorithms=[ALGORITHM],
         )
+
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -168,6 +187,7 @@ def get_current_user(
 
     try:
         user_id = int(user_id)
+
     except (TypeError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -175,7 +195,11 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user = db.query(User).filter(User.id == user_id).first()
+    user = (
+        db.query(User)
+        .filter(User.id == user_id)
+        .first()
+    )
 
     if user is None:
         raise HTTPException(
@@ -185,3 +209,23 @@ def get_current_user(
         )
 
     return user
+
+
+# -------------------------
+# Admin / Moderator access
+# -------------------------
+
+def require_moderator_or_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+
+    if current_user.role not in {
+        "ADMIN",
+        "MODERATOR",
+    }:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin or moderator access required",
+        )
+
+    return current_user
