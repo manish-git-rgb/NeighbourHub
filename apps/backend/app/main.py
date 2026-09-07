@@ -11,6 +11,8 @@ from app.api.routes.recommendations import router as recommendations_router
 from app.api.routes.lost_found import router as lost_found_router
 from app.api.routes.issue_reports import router as issue_reports_router
 from app.api.routes.comments import router as comments_router
+from app.api.routes.reactions import router as reactions_router
+
 
 app = FastAPI(title="NeighborHub API")
 
@@ -67,6 +69,11 @@ app.include_router(
 
 app.include_router(
     comments_router,
+    prefix="/api/v1",
+)
+
+app.include_router(
+    reactions_router,
     prefix="/api/v1",
 )
 

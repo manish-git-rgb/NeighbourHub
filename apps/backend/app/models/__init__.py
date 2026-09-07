@@ -11,6 +11,6 @@ from app.models.recommendation import Recommendation
 from app.models.lost_found import LostFound
 from app.models.issue_report import IssueReport
 from app.models.comment import Comment
-
+from app.models.reaction import Reaction
 
 
