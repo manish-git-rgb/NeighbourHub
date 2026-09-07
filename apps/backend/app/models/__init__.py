@@ -13,4 +13,4 @@ from app.models.issue_report import IssueReport
 from app.models.comment import Comment
 from app.models.reaction import Reaction
 from app.models.moderation import ModerationCase
-
+from app.models.notification import Notification
