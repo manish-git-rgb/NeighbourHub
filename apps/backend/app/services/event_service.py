@@ -1,7 +1,9 @@
+from datetime import datetime
+
 from fastapi import HTTPException, status
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.models.event import Event
@@ -73,20 +75,66 @@ def create_event(
 
 
 # -------------------------
-# List Events
+# List / Search / Filter Events
 # -------------------------
 
 def get_events(
     db: Session,
     page: int = 1,
     limit: int = 20,
+    keyword: str | None = None,
+    event_status: str | None = None,
+    neighborhood_id: int | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
 ):
     offset = (page - 1) * limit
 
-    total = db.query(Event).count()
+    query = db.query(Event)
+
+    # Keyword search
+    if keyword is not None:
+        keyword = keyword.strip()
+
+        if keyword:
+            search_pattern = f"%{keyword}%"
+
+            query = query.filter(
+                or_(
+                    Event.title.ilike(search_pattern),
+                    Event.description.ilike(search_pattern),
+                    Event.location_name.ilike(search_pattern),
+                )
+            )
+
+    # Status filter
+    if event_status is not None:
+        query = query.filter(
+            Event.status == event_status.upper()
+        )
+
+    # Neighborhood filter
+    if neighborhood_id is not None:
+        query = query.filter(
+            Event.neighborhood_id == neighborhood_id
+        )
+
+    # Start date filter
+    if start_date is not None:
+        query = query.filter(
+            Event.start_time >= start_date
+        )
+
+    # End date filter
+    if end_date is not None:
+        query = query.filter(
+            Event.start_time <= end_date
+        )
+
+    total = query.count()
 
     events = (
-        db.query(Event)
+        query
         .order_by(Event.start_time.asc())
         .offset(offset)
         .limit(limit)
@@ -131,6 +179,9 @@ def get_nearby_events(
     radius_km: float = 5,
     page: int = 1,
     limit: int = 20,
+    keyword: str | None = None,
+    event_status: str | None = None,
+    neighborhood_id: int | None = None,
 ):
     user_point = func.ST_SetSRID(
         func.ST_MakePoint(
@@ -154,7 +205,6 @@ def get_nearby_events(
         )
         .filter(
             Event.location.isnot(None),
-            Event.status == "ACTIVE",
             func.ST_DWithin(
                 func.Geography(Event.location),
                 func.Geography(user_point),
@@ -162,6 +212,33 @@ def get_nearby_events(
             ),
         )
     )
+
+    # Keyword search
+    if keyword is not None:
+        keyword = keyword.strip()
+
+        if keyword:
+            search_pattern = f"%{keyword}%"
+
+            query = query.filter(
+                or_(
+                    Event.title.ilike(search_pattern),
+                    Event.description.ilike(search_pattern),
+                    Event.location_name.ilike(search_pattern),
+                )
+            )
+
+    # Status filter
+    if event_status is not None:
+        query = query.filter(
+            Event.status == event_status.upper()
+        )
+
+    # Neighborhood filter
+    if neighborhood_id is not None:
+        query = query.filter(
+            Event.neighborhood_id == neighborhood_id
+        )
 
     offset = (page - 1) * limit
 
@@ -250,7 +327,7 @@ def update_event(
             detail="End time must be after start time",
         )
 
-    # Update location only when both coordinates are supplied
+    # Update location
     if (
         event_data.latitude is not None
         and event_data.longitude is not None
@@ -353,12 +430,7 @@ def create_rsvp(
     db.commit()
     db.refresh(rsvp)
 
-    # -------------------------
     # Automatic notification
-    # -------------------------
-
-    # Don't notify the event owner if they RSVP to
-    # their own event.
     if event.user_id != user_id:
         create_notification(
             db=db,

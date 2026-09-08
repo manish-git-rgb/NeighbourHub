@@ -1,17 +1,22 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
+from app.core.enums import EventStatus
 from app.core.security import get_current_user
 from app.db.database import get_db
 from app.models.user import User
+
 from app.schemas.event import (
     EventCreate,
-    EventResponse,
-    NearbyEventResponse,
     EventListResponse,
+    EventResponse,
     EventUpdate,
-    RSVPResponse
+    NearbyEventResponse,
+    RSVPResponse,
 )
+
 from app.services.event_service import (
     create_event,
     create_rsvp,
@@ -21,7 +26,7 @@ from app.services.event_service import (
     get_event_attendees,
     get_events,
     get_nearby_events,
-    update_event
+    update_event,
 )
 
 
@@ -53,7 +58,7 @@ def create_new_event(
 
 
 # ---------------------------------
-# List Events
+# List / Search / Filter Events
 # ---------------------------------
 
 @router.get(
@@ -61,14 +66,41 @@ def create_new_event(
     response_model=EventListResponse,
 )
 def list_events(
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    page: int = Query(
+        1,
+        ge=1,
+    ),
+    limit: int = Query(
+        20,
+        ge=1,
+        le=100,
+    ),
+    keyword: str | None = Query(
+        None,
+        min_length=1,
+        max_length=100,
+    ),
+    event_status: EventStatus | None = Query(
+        None,
+        alias="status",
+    ),
+    neighborhood_id: int | None = Query(
+        None,
+        ge=1,
+    ),
+    start_date: datetime | None = Query(None),
+    end_date: datetime | None = Query(None),
     db: Session = Depends(get_db),
 ):
     events, total = get_events(
         db=db,
         page=page,
         limit=limit,
+        keyword=keyword,
+        event_status=event_status,
+        neighborhood_id=neighborhood_id,
+        start_date=start_date,
+        end_date=end_date,
     )
 
     data = [
@@ -83,6 +115,7 @@ def list_events(
             start_time=event.start_time,
             end_time=event.end_time,
             status=event.status,
+            neighborhood_id=event.neighborhood_id,
             created_at=event.created_at,
             updated_at=event.updated_at,
         )
@@ -98,20 +131,54 @@ def list_events(
             "total": total,
         },
     }
-# --------------------------------
+
+
+# ---------------------------------
 # Nearby Events
-# --------------------------------
+# ---------------------------------
 
 @router.get(
     "/nearby",
     response_model=list[NearbyEventResponse],
 )
 def nearby_events(
-    latitude: float = Query(..., ge=-90, le=90),
-    longitude: float = Query(..., ge=-180, le=180),
-    radius_km: float = Query(5, gt=0, le=100),
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    latitude: float = Query(
+        ...,
+        ge=-90,
+        le=90,
+    ),
+    longitude: float = Query(
+        ...,
+        ge=-180,
+        le=180,
+    ),
+    radius_km: float = Query(
+        5,
+        gt=0,
+        le=100,
+    ),
+    page: int = Query(
+        1,
+        ge=1,
+    ),
+    limit: int = Query(
+        20,
+        ge=1,
+        le=100,
+    ),
+    keyword: str | None = Query(
+        None,
+        min_length=1,
+        max_length=100,
+    ),
+    event_status: EventStatus | None = Query(
+        None,
+        alias="status",
+    ),
+    neighborhood_id: int | None = Query(
+        None,
+        ge=1,
+    ),
     db: Session = Depends(get_db),
 ):
     results = get_nearby_events(
@@ -121,6 +188,9 @@ def nearby_events(
         radius_km=radius_km,
         page=page,
         limit=limit,
+        keyword=keyword,
+        event_status=event_status,
+        neighborhood_id=neighborhood_id,
     )
 
     response = []
@@ -138,7 +208,10 @@ def nearby_events(
                 start_time=event.start_time,
                 end_time=event.end_time,
                 status=event.status,
-                distance_km=round(float(distance_km), 3),
+                distance_km=round(
+                    float(distance_km),
+                    3,
+                ),
                 created_at=event.created_at,
                 updated_at=event.updated_at,
             )
@@ -164,6 +237,7 @@ def get_single_event(
         event_id=event_id,
     )
 
+
 # ---------------------------------
 # Update Event
 # ---------------------------------
@@ -185,6 +259,7 @@ def update_existing_event(
         event_data=event_data,
     )
 
+
 # ---------------------------------
 # Delete Event
 # ---------------------------------
@@ -203,6 +278,8 @@ def delete_existing_event(
         event_id=event_id,
         user_id=current_user.id,
     )
+
+    return None
 
 
 # ---------------------------------
@@ -244,6 +321,8 @@ def cancel_rsvp(
         event_id=event_id,
         user_id=current_user.id,
     )
+
+    return None
 
 
 # ---------------------------------

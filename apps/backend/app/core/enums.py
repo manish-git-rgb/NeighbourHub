@@ -20,3 +20,9 @@ class PostStatus(str, Enum):
     ACTIVE = "ACTIVE"
     HIDDEN = "HIDDEN"
     DELETED = "DELETED"
+
+
+class EventStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    CANCELLED = "CANCELLED"
+    COMPLETED = "COMPLETED"
