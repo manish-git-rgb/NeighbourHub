@@ -1,16 +1,22 @@
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.core.enums import PostCategory
+from app.core.enums import (
+    PostCategory,
+    PostStatus,
+    PostVisibility,
+)
 from app.core.security import get_current_user
 from app.db.database import get_db
 from app.models.user import User
+
 from app.schemas.post import (
     NearbyPostResponse,
     PostCreate,
     PostListResponse,
     PostResponse,
 )
+
 from app.services.post_service import (
     create_post,
     delete_post,
@@ -49,7 +55,7 @@ def create_new_post(
 
 
 # ---------------------------------
-# List Posts
+# List / Search / Filter Posts
 # ---------------------------------
 
 @router.get(
@@ -57,14 +63,36 @@ def create_new_post(
     response_model=PostListResponse,
 )
 def list_posts(
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    page: int = Query(
+        1,
+        ge=1,
+    ),
+    limit: int = Query(
+        20,
+        ge=1,
+        le=100,
+    ),
+    category: PostCategory | None = Query(None),
+    post_status: PostStatus | None = Query(
+        None,
+        alias="status",
+    ),
+    visibility: PostVisibility | None = Query(None),
+    keyword: str | None = Query(
+        None,
+        min_length=1,
+        max_length=100,
+    ),
     db: Session = Depends(get_db),
 ):
     posts, total = get_posts(
         db=db,
         page=page,
         limit=limit,
+        category=category,
+        post_status=post_status,
+        visibility=visibility,
+        keyword=keyword,
     )
 
     return {
@@ -87,12 +115,41 @@ def list_posts(
     response_model=list[NearbyPostResponse],
 )
 def nearby_posts(
-    latitude: float = Query(..., ge=-90, le=90),
-    longitude: float = Query(..., ge=-180, le=180),
-    radius_km: float = Query(5, gt=0, le=100),
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    latitude: float = Query(
+        ...,
+        ge=-90,
+        le=90,
+    ),
+    longitude: float = Query(
+        ...,
+        ge=-180,
+        le=180,
+    ),
+    radius_km: float = Query(
+        5,
+        gt=0,
+        le=100,
+    ),
+    page: int = Query(
+        1,
+        ge=1,
+    ),
+    limit: int = Query(
+        20,
+        ge=1,
+        le=100,
+    ),
     category: PostCategory | None = Query(None),
+    post_status: PostStatus | None = Query(
+        None,
+        alias="status",
+    ),
+    visibility: PostVisibility | None = Query(None),
+    keyword: str | None = Query(
+        None,
+        min_length=1,
+        max_length=100,
+    ),
     db: Session = Depends(get_db),
 ):
     results = get_nearby_posts(
@@ -103,6 +160,9 @@ def nearby_posts(
         page=page,
         limit=limit,
         category=category,
+        post_status=post_status,
+        visibility=visibility,
+        keyword=keyword,
     )
 
     response = []
@@ -119,7 +179,10 @@ def nearby_posts(
                 status=post.status,
                 latitude=post.latitude,
                 longitude=post.longitude,
-                distance_km=round(float(distance_km), 3),
+                distance_km=round(
+                    float(distance_km),
+                    3,
+                ),
                 created_at=post.created_at,
                 updated_at=post.updated_at,
             )
@@ -186,3 +249,5 @@ def delete_existing_post(
         post_id=post_id,
         user_id=current_user.id,
     )
+
+    return None
