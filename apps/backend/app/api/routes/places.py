@@ -4,12 +4,14 @@ from sqlalchemy.orm import Session
 from app.core.security import get_current_user
 from app.db.database import get_db
 from app.models.user import User
+
 from app.schemas.place import (
     NearbyPlaceResponse,
     PlaceCreate,
     PlaceResponse,
     PlaceUpdate,
 )
+
 from app.services.place_service import (
     create_place,
     delete_place,
@@ -25,6 +27,10 @@ router = APIRouter(
     tags=["Places"],
 )
 
+
+# ---------------------------------
+# Create Place
+# ---------------------------------
 
 @router.post(
     "/",
@@ -43,16 +49,46 @@ def create_new_place(
     )
 
 
-@router.get("/")
+# ---------------------------------
+# List / Search / Filter Places
+# ---------------------------------
+
+@router.get(
+    "/",
+)
 def list_places(
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    page: int = Query(
+        1,
+        ge=1,
+    ),
+    limit: int = Query(
+        20,
+        ge=1,
+        le=100,
+    ),
+    keyword: str | None = Query(
+        None,
+        min_length=1,
+        max_length=100,
+    ),
+    category: str | None = Query(
+        None,
+        min_length=1,
+        max_length=50,
+    ),
+    neighborhood_id: int | None = Query(
+        None,
+        ge=1,
+    ),
     db: Session = Depends(get_db),
 ):
     places, total = get_places(
         db=db,
         page=page,
         limit=limit,
+        keyword=keyword,
+        category=category,
+        neighborhood_id=neighborhood_id,
     )
 
     data = [
@@ -71,17 +107,53 @@ def list_places(
     }
 
 
+# ---------------------------------
+# Nearby Places
+# ---------------------------------
+
 @router.get(
     "/nearby",
     response_model=list[NearbyPlaceResponse],
 )
 def nearby_places(
-    latitude: float = Query(..., ge=-90, le=90),
-    longitude: float = Query(..., ge=-180, le=180),
-    radius_km: float = Query(5, gt=0, le=100),
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
-    category: str | None = Query(None),
+    latitude: float = Query(
+        ...,
+        ge=-90,
+        le=90,
+    ),
+    longitude: float = Query(
+        ...,
+        ge=-180,
+        le=180,
+    ),
+    radius_km: float = Query(
+        5,
+        gt=0,
+        le=100,
+    ),
+    page: int = Query(
+        1,
+        ge=1,
+    ),
+    limit: int = Query(
+        20,
+        ge=1,
+        le=100,
+    ),
+    category: str | None = Query(
+        None,
+        min_length=1,
+        max_length=50,
+    ),
+    keyword: str | None = Query(
+        None,
+        min_length=1,
+        max_length=100,
+    ),
+    neighborhood_id: int | None = Query(
+        None,
+        ge=1,
+    ),
     db: Session = Depends(get_db),
 ):
     results = get_nearby_places(
@@ -92,6 +164,8 @@ def nearby_places(
         page=page,
         limit=limit,
         category=category,
+        keyword=keyword,
+        neighborhood_id=neighborhood_id,
     )
 
     return [
@@ -105,13 +179,20 @@ def nearby_places(
             address=place.address,
             latitude=place.latitude,
             longitude=place.longitude,
-            distance_km=round(float(distance_km), 3),
+            distance_km=round(
+                float(distance_km),
+                3,
+            ),
             created_at=place.created_at,
             updated_at=place.updated_at,
         )
         for place, distance_km in results
     ]
 
+
+# ---------------------------------
+# Get Single Place
+# ---------------------------------
 
 @router.get(
     "/{place_id}",
@@ -126,6 +207,10 @@ def get_single_place(
         place_id=place_id,
     )
 
+
+# ---------------------------------
+# Update Place
+# ---------------------------------
 
 @router.patch(
     "/{place_id}",
@@ -145,6 +230,10 @@ def update_existing_place(
     )
 
 
+# ---------------------------------
+# Delete Place
+# ---------------------------------
+
 @router.delete(
     "/{place_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -159,3 +248,5 @@ def delete_existing_place(
         place_id=place_id,
         user_id=current_user.id,
     )
+
+    return None

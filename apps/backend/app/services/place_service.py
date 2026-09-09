@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.models.neighborhood import Neighborhood
@@ -9,16 +9,23 @@ from app.models.place import Place
 from app.schemas.place import PlaceCreate, PlaceUpdate
 
 
+# ---------------------------------
+# Validate Neighborhood
+# ---------------------------------
+
 def _validate_neighborhood(
     db: Session,
     neighborhood_id: int | None,
 ) -> None:
+
     if neighborhood_id is None:
         return
 
     neighborhood = (
         db.query(Neighborhood)
-        .filter(Neighborhood.id == neighborhood_id)
+        .filter(
+            Neighborhood.id == neighborhood_id
+        )
         .first()
     )
 
@@ -29,11 +36,16 @@ def _validate_neighborhood(
         )
 
 
+# ---------------------------------
+# Create Place
+# ---------------------------------
+
 def create_place(
     db: Session,
     user_id: int,
     place_data: PlaceCreate,
 ) -> Place:
+
     _validate_neighborhood(
         db,
         place_data.neighborhood_id,
@@ -64,17 +76,54 @@ def create_place(
     return place
 
 
+# ---------------------------------
+# List / Search / Filter Places
+# ---------------------------------
+
 def get_places(
     db: Session,
     page: int = 1,
     limit: int = 20,
+    keyword: str | None = None,
+    category: str | None = None,
+    neighborhood_id: int | None = None,
 ) -> tuple[list[Place], int]:
+
     offset = (page - 1) * limit
 
-    total = db.query(Place).count()
+    query = db.query(Place)
+
+    # Keyword search
+    if keyword is not None:
+        keyword = keyword.strip()
+
+        if keyword:
+            search_pattern = f"%{keyword}%"
+
+            query = query.filter(
+                or_(
+                    Place.name.ilike(search_pattern),
+                    Place.description.ilike(search_pattern),
+                    Place.address.ilike(search_pattern),
+                )
+            )
+
+    # Category filter
+    if category is not None:
+        query = query.filter(
+            Place.category == category
+        )
+
+    # Neighborhood filter
+    if neighborhood_id is not None:
+        query = query.filter(
+            Place.neighborhood_id == neighborhood_id
+        )
+
+    total = query.count()
 
     places = (
-        db.query(Place)
+        query
         .order_by(Place.name.asc())
         .offset(offset)
         .limit(limit)
@@ -84,10 +133,15 @@ def get_places(
     return places, total
 
 
+# ---------------------------------
+# Get Single Place
+# ---------------------------------
+
 def get_place(
     db: Session,
     place_id: int,
 ) -> Place:
+
     place = (
         db.query(Place)
         .filter(Place.id == place_id)
@@ -103,6 +157,10 @@ def get_place(
     return place
 
 
+# ---------------------------------
+# Nearby Places
+# ---------------------------------
+
 def get_nearby_places(
     db: Session,
     latitude: float,
@@ -111,6 +169,8 @@ def get_nearby_places(
     page: int = 1,
     limit: int = 20,
     category: str | None = None,
+    keyword: str | None = None,
+    neighborhood_id: int | None = None,
 ):
     user_point = func.ST_SetSRID(
         func.ST_MakePoint(
@@ -142,9 +202,31 @@ def get_nearby_places(
         )
     )
 
+    # Category filter
     if category is not None:
         query = query.filter(
             Place.category == category
+        )
+
+    # Keyword search
+    if keyword is not None:
+        keyword = keyword.strip()
+
+        if keyword:
+            search_pattern = f"%{keyword}%"
+
+            query = query.filter(
+                or_(
+                    Place.name.ilike(search_pattern),
+                    Place.description.ilike(search_pattern),
+                    Place.address.ilike(search_pattern),
+                )
+            )
+
+    # Neighborhood filter
+    if neighborhood_id is not None:
+        query = query.filter(
+            Place.neighborhood_id == neighborhood_id
         )
 
     offset = (page - 1) * limit
@@ -161,12 +243,17 @@ def get_nearby_places(
     )
 
 
+# ---------------------------------
+# Update Place
+# ---------------------------------
+
 def update_place(
     db: Session,
     place_id: int,
     user_id: int,
     place_data: PlaceUpdate,
 ) -> Place:
+
     place = (
         db.query(Place)
         .filter(Place.id == place_id)
@@ -190,7 +277,10 @@ def update_place(
             db,
             place_data.neighborhood_id,
         )
-        place.neighborhood_id = place_data.neighborhood_id
+
+        place.neighborhood_id = (
+            place_data.neighborhood_id
+        )
 
     if place_data.name is not None:
         place.name = place_data.name
@@ -222,11 +312,16 @@ def update_place(
     return place
 
 
+# ---------------------------------
+# Delete Place
+# ---------------------------------
+
 def delete_place(
     db: Session,
     place_id: int,
     user_id: int,
 ) -> None:
+
     place = (
         db.query(Place)
         .filter(Place.id == place_id)
