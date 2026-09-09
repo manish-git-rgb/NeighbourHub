@@ -4,13 +4,15 @@ from sqlalchemy.orm import Session
 from app.core.security import get_current_user
 from app.db.database import get_db
 from app.models.user import User
+
 from app.schemas.service_provider import (
     NearbyServiceProviderResponse,
     ServiceProviderCreate,
+    ServiceProviderListResponse,
     ServiceProviderResponse,
     ServiceProviderUpdate,
-    ServiceProviderListResponse
 )
+
 from app.services.service_provider_service import (
     create_service_provider,
     delete_service_provider,
@@ -26,6 +28,10 @@ router = APIRouter(
     tags=["Service Providers"],
 )
 
+
+# ---------------------------------
+# Create Service Provider
+# ---------------------------------
 
 @router.post(
     "/",
@@ -44,19 +50,47 @@ def create_new_service_provider(
     )
 
 
+# ---------------------------------
+# List / Search / Filter Services
+# ---------------------------------
+
 @router.get(
     "/",
     response_model=ServiceProviderListResponse,
 )
 def list_service_providers(
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    page: int = Query(
+        1,
+        ge=1,
+    ),
+    limit: int = Query(
+        20,
+        ge=1,
+        le=100,
+    ),
+    keyword: str | None = Query(
+        None,
+        min_length=1,
+        max_length=100,
+    ),
+    category: str | None = Query(
+        None,
+        min_length=1,
+        max_length=50,
+    ),
+    neighborhood_id: int | None = Query(
+        None,
+        ge=1,
+    ),
     db: Session = Depends(get_db),
 ):
     service_providers, total = get_service_providers(
         db=db,
         page=page,
         limit=limit,
+        keyword=keyword,
+        category=category,
+        neighborhood_id=neighborhood_id,
     )
 
     return {
@@ -70,17 +104,53 @@ def list_service_providers(
     }
 
 
+# ---------------------------------
+# Nearby Service Providers
+# ---------------------------------
+
 @router.get(
     "/nearby",
     response_model=list[NearbyServiceProviderResponse],
 )
 def nearby_service_providers(
-    latitude: float = Query(..., ge=-90, le=90),
-    longitude: float = Query(..., ge=-180, le=180),
-    radius_km: float = Query(5, gt=0, le=100),
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
-    category: str | None = Query(None),
+    latitude: float = Query(
+        ...,
+        ge=-90,
+        le=90,
+    ),
+    longitude: float = Query(
+        ...,
+        ge=-180,
+        le=180,
+    ),
+    radius_km: float = Query(
+        5,
+        gt=0,
+        le=100,
+    ),
+    page: int = Query(
+        1,
+        ge=1,
+    ),
+    limit: int = Query(
+        20,
+        ge=1,
+        le=100,
+    ),
+    category: str | None = Query(
+        None,
+        min_length=1,
+        max_length=50,
+    ),
+    keyword: str | None = Query(
+        None,
+        min_length=1,
+        max_length=100,
+    ),
+    neighborhood_id: int | None = Query(
+        None,
+        ge=1,
+    ),
     db: Session = Depends(get_db),
 ):
     results = get_nearby_service_providers(
@@ -91,6 +161,8 @@ def nearby_service_providers(
         page=page,
         limit=limit,
         category=category,
+        keyword=keyword,
+        neighborhood_id=neighborhood_id,
     )
 
     response = []
@@ -108,14 +180,21 @@ def nearby_service_providers(
                 address=service_provider.address,
                 latitude=service_provider.latitude,
                 longitude=service_provider.longitude,
+                distance_km=round(
+                    float(distance_km),
+                    3,
+                ),
                 created_at=service_provider.created_at,
                 updated_at=service_provider.updated_at,
-                distance_km=round(float(distance_km), 3),
             )
         )
 
     return response
 
+
+# ---------------------------------
+# Get Single Service Provider
+# ---------------------------------
 
 @router.get(
     "/{service_id}",
@@ -130,6 +209,10 @@ def get_single_service_provider(
         service_id=service_id,
     )
 
+
+# ---------------------------------
+# Update Service Provider
+# ---------------------------------
 
 @router.patch(
     "/{service_id}",
@@ -148,6 +231,10 @@ def update_existing_service_provider(
         service_data=service_data,
     )
 
+
+# ---------------------------------
+# Delete Service Provider
+# ---------------------------------
 
 @router.delete(
     "/{service_id}",

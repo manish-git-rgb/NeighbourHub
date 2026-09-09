@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.models.neighborhood import Neighborhood
@@ -12,10 +12,15 @@ from app.schemas.service_provider import (
 )
 
 
+# ---------------------------------
+# Validate Neighborhood
+# ---------------------------------
+
 def _validate_neighborhood(
     db: Session,
     neighborhood_id: int | None,
 ) -> None:
+
     if neighborhood_id is None:
         return
 
@@ -32,13 +37,20 @@ def _validate_neighborhood(
         )
 
 
+# ---------------------------------
+# Create Service Provider
+# ---------------------------------
+
 def create_service_provider(
     db: Session,
     user_id: int,
     service_data: ServiceProviderCreate,
 ) -> ServiceProvider:
 
-    _validate_neighborhood(db, service_data.neighborhood_id)
+    _validate_neighborhood(
+        db,
+        service_data.neighborhood_id,
+    )
 
     location = from_shape(
         Point(
@@ -66,18 +78,62 @@ def create_service_provider(
     return service_provider
 
 
+# ---------------------------------
+# List / Search / Filter Services
+# ---------------------------------
+
 def get_service_providers(
     db: Session,
     page: int = 1,
     limit: int = 20,
+    keyword: str | None = None,
+    category: str | None = None,
+    neighborhood_id: int | None = None,
 ):
     offset = (page - 1) * limit
 
-    total = db.query(ServiceProvider).count()
+    query = db.query(ServiceProvider)
+
+    # Keyword search
+    if keyword is not None:
+        keyword = keyword.strip()
+
+        if keyword:
+            search_pattern = f"%{keyword}%"
+
+            query = query.filter(
+                or_(
+                    ServiceProvider.business_name.ilike(
+                        search_pattern
+                    ),
+                    ServiceProvider.description.ilike(
+                        search_pattern
+                    ),
+                    ServiceProvider.address.ilike(
+                        search_pattern
+                    ),
+                )
+            )
+
+    # Category filter
+    if category is not None:
+        query = query.filter(
+            ServiceProvider.category == category
+        )
+
+    # Neighborhood filter
+    if neighborhood_id is not None:
+        query = query.filter(
+            ServiceProvider.neighborhood_id == neighborhood_id
+        )
+
+    total = query.count()
 
     service_providers = (
-        db.query(ServiceProvider)
-        .order_by(ServiceProvider.business_name.asc())
+        query
+        .order_by(
+            ServiceProvider.business_name.asc()
+        )
         .offset(offset)
         .limit(limit)
         .all()
@@ -85,6 +141,10 @@ def get_service_providers(
 
     return service_providers, total
 
+
+# ---------------------------------
+# Get Single Service Provider
+# ---------------------------------
 
 def get_service_provider(
     db: Session,
@@ -106,6 +166,10 @@ def get_service_provider(
     return service_provider
 
 
+# ---------------------------------
+# Nearby Service Providers
+# ---------------------------------
+
 def get_nearby_service_providers(
     db: Session,
     latitude: float,
@@ -114,9 +178,14 @@ def get_nearby_service_providers(
     page: int = 1,
     limit: int = 20,
     category: str | None = None,
+    keyword: str | None = None,
+    neighborhood_id: int | None = None,
 ):
     user_point = func.ST_SetSRID(
-        func.ST_MakePoint(longitude, latitude),
+        func.ST_MakePoint(
+            longitude,
+            latitude,
+        ),
         4326,
     )
 
@@ -142,9 +211,37 @@ def get_nearby_service_providers(
         )
     )
 
+    # Category filter
     if category is not None:
         query = query.filter(
             ServiceProvider.category == category
+        )
+
+    # Keyword search
+    if keyword is not None:
+        keyword = keyword.strip()
+
+        if keyword:
+            search_pattern = f"%{keyword}%"
+
+            query = query.filter(
+                or_(
+                    ServiceProvider.business_name.ilike(
+                        search_pattern
+                    ),
+                    ServiceProvider.description.ilike(
+                        search_pattern
+                    ),
+                    ServiceProvider.address.ilike(
+                        search_pattern
+                    ),
+                )
+            )
+
+    # Neighborhood filter
+    if neighborhood_id is not None:
+        query = query.filter(
+            ServiceProvider.neighborhood_id == neighborhood_id
         )
 
     offset = (page - 1) * limit
@@ -160,6 +257,10 @@ def get_nearby_service_providers(
         .all()
     )
 
+
+# ---------------------------------
+# Update Service Provider
+# ---------------------------------
 
 def update_service_provider(
     db: Session,
@@ -191,6 +292,7 @@ def update_service_provider(
             db,
             service_data.neighborhood_id,
         )
+
         service_provider.neighborhood_id = (
             service_data.neighborhood_id
         )
@@ -231,6 +333,10 @@ def update_service_provider(
 
     return service_provider
 
+
+# ---------------------------------
+# Delete Service Provider
+# ---------------------------------
 
 def delete_service_provider(
     db: Session,
