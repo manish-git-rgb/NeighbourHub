@@ -14,7 +14,7 @@ from app.api.routes.comments import router as comments_router
 from app.api.routes.reactions import router as reactions_router
 from app.api.routes.moderation import router as moderation_router
 from app.api.routes.notifications import router as notifications_router
-
+from app.api.routes.admin import router as admin_router
 
 
 
@@ -91,6 +91,10 @@ app.include_router(
 app.include_router(
     notifications_router,
     prefix="/api/v1",
+)
+
+app.include_router(
+    admin_router, prefix="/api/v1"
 )
 
 @app.get("/")

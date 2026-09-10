@@ -8,6 +8,7 @@ from app.schemas.moderation import (
     ModerationCreate,
     ModerationUpdate,
 )
+from app.services.notification_service import create_notification
 
 
 VALID_STATUSES = {
@@ -17,6 +18,10 @@ VALID_STATUSES = {
     "REJECTED",
 }
 
+
+# -------------------------
+# Validate Status
+# -------------------------
 
 def _validate_status(value: str) -> str:
     value = value.upper()
@@ -33,18 +38,27 @@ def _validate_status(value: str) -> str:
     return value
 
 
+# -------------------------
+# Create Moderation Case
+# -------------------------
+
 def create_moderation_case(
     db: Session,
     reporter_id: int,
     moderation_data: ModerationCreate,
 ) -> ModerationCase:
 
-    if moderation_data.post_id is None and moderation_data.comment_id is None:
+    # Must report either a post or a comment
+    if (
+        moderation_data.post_id is None
+        and moderation_data.comment_id is None
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Either post_id or comment_id is required",
         )
 
+    # Cannot report both at the same time
     if (
         moderation_data.post_id is not None
         and moderation_data.comment_id is not None
@@ -54,10 +68,13 @@ def create_moderation_case(
             detail="Provide either post_id or comment_id, not both",
         )
 
+    # Validate post
     if moderation_data.post_id is not None:
         post = (
             db.query(Post)
-            .filter(Post.id == moderation_data.post_id)
+            .filter(
+                Post.id == moderation_data.post_id
+            )
             .first()
         )
 
@@ -67,10 +84,13 @@ def create_moderation_case(
                 detail="Post not found",
             )
 
+    # Validate comment
     if moderation_data.comment_id is not None:
         comment = (
             db.query(Comment)
-            .filter(Comment.id == moderation_data.comment_id)
+            .filter(
+                Comment.id == moderation_data.comment_id
+            )
             .first()
         )
 
@@ -96,6 +116,10 @@ def create_moderation_case(
     return moderation_case
 
 
+# -------------------------
+# List Moderation Cases
+# -------------------------
+
 def get_moderation_cases(
     db: Session,
     page: int = 1,
@@ -108,14 +132,17 @@ def get_moderation_cases(
 
     if case_status is not None:
         query = query.filter(
-            ModerationCase.status == _validate_status(case_status)
+            ModerationCase.status
+            == _validate_status(case_status)
         )
 
     total = query.count()
 
     cases = (
         query
-        .order_by(ModerationCase.created_at.desc())
+        .order_by(
+            ModerationCase.created_at.desc()
+        )
         .offset(offset)
         .limit(limit)
         .all()
@@ -124,6 +151,10 @@ def get_moderation_cases(
     return cases, total
 
 
+# -------------------------
+# Get Single Moderation Case
+# -------------------------
+
 def get_moderation_case(
     db: Session,
     case_id: int,
@@ -131,7 +162,9 @@ def get_moderation_case(
 
     moderation_case = (
         db.query(ModerationCase)
-        .filter(ModerationCase.id == case_id)
+        .filter(
+            ModerationCase.id == case_id
+        )
         .first()
     )
 
@@ -144,6 +177,10 @@ def get_moderation_case(
     return moderation_case
 
 
+# -------------------------
+# Update Moderation Case
+# -------------------------
+
 def update_moderation_case(
     db: Session,
     case_id: int,
@@ -155,11 +192,34 @@ def update_moderation_case(
         case_id,
     )
 
-    moderation_case.status = _validate_status(
+    # Remember old status
+    old_status = moderation_case.status
+
+    # Validate and assign new status
+    new_status = _validate_status(
         moderation_data.status
     )
 
+    moderation_case.status = new_status
+
     db.commit()
     db.refresh(moderation_case)
+
+    # -------------------------
+    # Automatic notification
+    # -------------------------
+
+    # Notify only when the status actually changes.
+    if old_status != new_status:
+        create_notification(
+            db=db,
+            user_id=moderation_case.reporter_id,
+            notification_type="MODERATION_STATUS",
+            title="Moderation report updated",
+            message=(
+                f"Your moderation report status is now "
+                f"{new_status}."
+            ),
+        )
 
     return moderation_case

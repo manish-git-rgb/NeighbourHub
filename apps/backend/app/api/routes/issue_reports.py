@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.security import get_current_user
 from app.db.database import get_db
 from app.models.user import User
+
 from app.schemas.issue_report import (
     IssueReportCreate,
     IssueReportListResponse,
@@ -11,6 +12,7 @@ from app.schemas.issue_report import (
     IssueReportUpdate,
     NearbyIssueReportResponse,
 )
+
 from app.services.issue_report_service import (
     create_issue_report,
     delete_issue_report,
@@ -27,6 +29,10 @@ router = APIRouter(
 )
 
 
+# ---------------------------------
+# Create Issue Report
+# ---------------------------------
+
 @router.post(
     "/",
     response_model=IssueReportResponse,
@@ -34,7 +40,9 @@ router = APIRouter(
 )
 def create_new_issue_report(
     issue_data: IssueReportCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(
+        get_current_user
+    ),
     db: Session = Depends(get_db),
 ):
     return create_issue_report(
@@ -44,15 +52,44 @@ def create_new_issue_report(
     )
 
 
+# ---------------------------------
+# List / Search / Filter Issues
+# ---------------------------------
+
 @router.get(
     "/",
     response_model=IssueReportListResponse,
 )
 def list_issue_reports(
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
-    category: str | None = Query(None),
-    issue_status: str | None = Query(None),
+    page: int = Query(
+        1,
+        ge=1,
+    ),
+    limit: int = Query(
+        20,
+        ge=1,
+        le=100,
+    ),
+    category: str | None = Query(
+        None,
+        min_length=1,
+        max_length=50,
+    ),
+    issue_status: str | None = Query(
+        None,
+        min_length=1,
+        max_length=20,
+        alias="status",
+    ),
+    keyword: str | None = Query(
+        None,
+        min_length=1,
+        max_length=100,
+    ),
+    neighborhood_id: int | None = Query(
+        None,
+        ge=1,
+    ),
     db: Session = Depends(get_db),
 ):
     issues, total = get_issue_reports(
@@ -61,6 +98,8 @@ def list_issue_reports(
         limit=limit,
         category=category,
         issue_status=issue_status,
+        keyword=keyword,
+        neighborhood_id=neighborhood_id,
     )
 
     return {
@@ -74,21 +113,59 @@ def list_issue_reports(
     }
 
 
+# ---------------------------------
+# Nearby Issue Reports
+# ---------------------------------
+
 @router.get(
     "/nearby",
     response_model=list[NearbyIssueReportResponse],
 )
 def nearby_issue_reports(
-    latitude: float = Query(..., ge=-90, le=90),
-    longitude: float = Query(..., ge=-180, le=180),
+    latitude: float = Query(
+        ...,
+        ge=-90,
+        le=90,
+    ),
+    longitude: float = Query(
+        ...,
+        ge=-180,
+        le=180,
+    ),
     radius_km: float = Query(
         5,
         gt=0,
         le=100,
     ),
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
-    category: str | None = Query(None),
+    page: int = Query(
+        1,
+        ge=1,
+    ),
+    limit: int = Query(
+        20,
+        ge=1,
+        le=100,
+    ),
+    category: str | None = Query(
+        None,
+        min_length=1,
+        max_length=50,
+    ),
+    issue_status: str | None = Query(
+        None,
+        min_length=1,
+        max_length=20,
+        alias="status",
+    ),
+    keyword: str | None = Query(
+        None,
+        min_length=1,
+        max_length=100,
+    ),
+    neighborhood_id: int | None = Query(
+        None,
+        ge=1,
+    ),
     db: Session = Depends(get_db),
 ):
     results = get_nearby_issue_reports(
@@ -99,6 +176,9 @@ def nearby_issue_reports(
         page=page,
         limit=limit,
         category=category,
+        issue_status=issue_status,
+        keyword=keyword,
+        neighborhood_id=neighborhood_id,
     )
 
     response = []
@@ -108,7 +188,9 @@ def nearby_issue_reports(
             NearbyIssueReportResponse(
                 id=issue_report.id,
                 user_id=issue_report.user_id,
-                neighborhood_id=issue_report.neighborhood_id,
+                neighborhood_id=(
+                    issue_report.neighborhood_id
+                ),
                 title=issue_report.title,
                 description=issue_report.description,
                 category=issue_report.category,
@@ -127,6 +209,10 @@ def nearby_issue_reports(
     return response
 
 
+# ---------------------------------
+# Get Single Issue Report
+# ---------------------------------
+
 @router.get(
     "/{issue_id}",
     response_model=IssueReportResponse,
@@ -141,6 +227,10 @@ def get_single_issue_report(
     )
 
 
+# ---------------------------------
+# Update Issue Report
+# ---------------------------------
+
 @router.patch(
     "/{issue_id}",
     response_model=IssueReportResponse,
@@ -148,7 +238,9 @@ def get_single_issue_report(
 def update_existing_issue_report(
     issue_id: int,
     issue_data: IssueReportUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(
+        get_current_user
+    ),
     db: Session = Depends(get_db),
 ):
     return update_issue_report(
@@ -159,13 +251,19 @@ def update_existing_issue_report(
     )
 
 
+# ---------------------------------
+# Delete Issue Report
+# ---------------------------------
+
 @router.delete(
     "/{issue_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 def delete_existing_issue_report(
     issue_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(
+        get_current_user
+    ),
     db: Session = Depends(get_db),
 ):
     delete_issue_report(

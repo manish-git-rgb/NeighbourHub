@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
 from geoalchemy2.shape import from_shape
 from shapely.geometry import Point
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.models.issue_report import IssueReport
@@ -10,6 +10,7 @@ from app.schemas.issue_report import (
     IssueReportCreate,
     IssueReportUpdate,
 )
+from app.services.notification_service import create_notification
 
 
 VALID_STATUSES = {
@@ -20,16 +21,23 @@ VALID_STATUSES = {
 }
 
 
+# ---------------------------------
+# Validate Neighborhood
+# ---------------------------------
+
 def _validate_neighborhood(
     db: Session,
     neighborhood_id: int | None,
 ) -> None:
+
     if neighborhood_id is None:
         return
 
     neighborhood = (
         db.query(Neighborhood)
-        .filter(Neighborhood.id == neighborhood_id)
+        .filter(
+            Neighborhood.id == neighborhood_id
+        )
         .first()
     )
 
@@ -39,6 +47,10 @@ def _validate_neighborhood(
             detail="Neighborhood not found",
         )
 
+
+# ---------------------------------
+# Validate Status
+# ---------------------------------
 
 def _validate_status(value: str) -> str:
     value = value.upper()
@@ -54,6 +66,10 @@ def _validate_status(value: str) -> str:
 
     return value
 
+
+# ---------------------------------
+# Create Issue Report
+# ---------------------------------
 
 def create_issue_report(
     db: Session,
@@ -97,34 +113,71 @@ def create_issue_report(
     return issue_report
 
 
+# ---------------------------------
+# List / Search / Filter Issues
+# ---------------------------------
+
 def get_issue_reports(
     db: Session,
     page: int = 1,
     limit: int = 20,
     category: str | None = None,
     issue_status: str | None = None,
+    keyword: str | None = None,
+    neighborhood_id: int | None = None,
 ):
     offset = (page - 1) * limit
 
     query = db.query(IssueReport)
 
+    # Category filter
     if category is not None:
         query = query.filter(
             IssueReport.category == category
         )
 
+    # Status filter
     if issue_status is not None:
         query = query.filter(
-            IssueReport.status == _validate_status(
-                issue_status
-            )
+            IssueReport.status
+            == _validate_status(issue_status)
         )
+
+    # Neighborhood filter
+    if neighborhood_id is not None:
+        query = query.filter(
+            IssueReport.neighborhood_id
+            == neighborhood_id
+        )
+
+    # Keyword search
+    if keyword is not None:
+        keyword = keyword.strip()
+
+        if keyword:
+            search_pattern = f"%{keyword}%"
+
+            query = query.filter(
+                or_(
+                    IssueReport.title.ilike(
+                        search_pattern
+                    ),
+                    IssueReport.description.ilike(
+                        search_pattern
+                    ),
+                    IssueReport.category.ilike(
+                        search_pattern
+                    ),
+                )
+            )
 
     total = query.count()
 
     issues = (
         query
-        .order_by(IssueReport.created_at.desc())
+        .order_by(
+            IssueReport.created_at.desc()
+        )
         .offset(offset)
         .limit(limit)
         .all()
@@ -133,6 +186,10 @@ def get_issue_reports(
     return issues, total
 
 
+# ---------------------------------
+# Get Single Issue Report
+# ---------------------------------
+
 def get_issue_report(
     db: Session,
     issue_id: int,
@@ -140,7 +197,9 @@ def get_issue_report(
 
     issue_report = (
         db.query(IssueReport)
-        .filter(IssueReport.id == issue_id)
+        .filter(
+            IssueReport.id == issue_id
+        )
         .first()
     )
 
@@ -153,6 +212,10 @@ def get_issue_report(
     return issue_report
 
 
+# ---------------------------------
+# Nearby Issue Reports
+# ---------------------------------
+
 def get_nearby_issue_reports(
     db: Session,
     latitude: float,
@@ -161,6 +224,9 @@ def get_nearby_issue_reports(
     page: int = 1,
     limit: int = 20,
     category: str | None = None,
+    issue_status: str | None = None,
+    keyword: str | None = None,
+    neighborhood_id: int | None = None,
 ):
     user_point = func.ST_SetSRID(
         func.ST_MakePoint(
@@ -192,10 +258,46 @@ def get_nearby_issue_reports(
         )
     )
 
+    # Category filter
     if category is not None:
         query = query.filter(
             IssueReport.category == category
         )
+
+    # Status filter
+    if issue_status is not None:
+        query = query.filter(
+            IssueReport.status
+            == _validate_status(issue_status)
+        )
+
+    # Neighborhood filter
+    if neighborhood_id is not None:
+        query = query.filter(
+            IssueReport.neighborhood_id
+            == neighborhood_id
+        )
+
+    # Keyword search
+    if keyword is not None:
+        keyword = keyword.strip()
+
+        if keyword:
+            search_pattern = f"%{keyword}%"
+
+            query = query.filter(
+                or_(
+                    IssueReport.title.ilike(
+                        search_pattern
+                    ),
+                    IssueReport.description.ilike(
+                        search_pattern
+                    ),
+                    IssueReport.category.ilike(
+                        search_pattern
+                    ),
+                )
+            )
 
     offset = (page - 1) * limit
 
@@ -210,6 +312,10 @@ def get_nearby_issue_reports(
         .all()
     )
 
+
+# ---------------------------------
+# Update Issue Report
+# ---------------------------------
 
 def update_issue_report(
     db: Session,
@@ -226,8 +332,15 @@ def update_issue_report(
     if issue_report.user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not allowed to update this issue report",
+            detail=(
+                "You are not allowed to update "
+                "this issue report"
+            ),
         )
+
+    # Keep the old status so we can detect
+    # whether the status actually changed.
+    old_status = issue_report.status
 
     if issue_data.neighborhood_id is not None:
         _validate_neighborhood(
@@ -243,15 +356,21 @@ def update_issue_report(
         issue_report.title = issue_data.title
 
     if issue_data.description is not None:
-        issue_report.description = issue_data.description
+        issue_report.description = (
+            issue_data.description
+        )
 
     if issue_data.category is not None:
-        issue_report.category = issue_data.category
+        issue_report.category = (
+            issue_data.category
+        )
 
     if issue_data.status is not None:
-        issue_report.status = _validate_status(
+        new_status = _validate_status(
             issue_data.status
         )
+
+        issue_report.status = new_status
 
     if (
         issue_data.latitude is not None
@@ -268,8 +387,31 @@ def update_issue_report(
     db.commit()
     db.refresh(issue_report)
 
+    # ---------------------------------
+    # Automatic status notification
+    # ---------------------------------
+
+    if (
+        issue_data.status is not None
+        and old_status != issue_report.status
+    ):
+        create_notification(
+            db=db,
+            user_id=issue_report.user_id,
+            notification_type="ISSUE_STATUS",
+            title="Issue report status updated",
+            message=(
+                f'Your issue report "{issue_report.title}" '
+                f'is now {issue_report.status}.'
+            ),
+        )
+
     return issue_report
 
+
+# ---------------------------------
+# Delete Issue Report
+# ---------------------------------
 
 def delete_issue_report(
     db: Session,
@@ -285,7 +427,10 @@ def delete_issue_report(
     if issue_report.user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not allowed to delete this issue report",
+            detail=(
+                "You are not allowed to delete "
+                "this issue report"
+            ),
         )
 
     db.delete(issue_report)
