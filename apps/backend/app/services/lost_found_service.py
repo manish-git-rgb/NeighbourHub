@@ -1,4 +1,5 @@
 from fastapi import HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.lost_found import LostFound
@@ -10,8 +11,13 @@ from app.schemas.lost_found import (
 
 
 VALID_TYPES = {"LOST", "FOUND"}
+
 VALID_STATUSES = {"OPEN", "RESOLVED"}
 
+
+# ---------------------------------
+# Validate Type
+# ---------------------------------
 
 def _validate_type(value: str) -> str:
     value = value.upper()
@@ -25,6 +31,10 @@ def _validate_type(value: str) -> str:
     return value
 
 
+# ---------------------------------
+# Validate Status
+# ---------------------------------
+
 def _validate_status(value: str) -> str:
     value = value.upper()
 
@@ -36,6 +46,10 @@ def _validate_status(value: str) -> str:
 
     return value
 
+
+# ---------------------------------
+# Create Lost & Found
+# ---------------------------------
 
 def create_lost_found(
     db: Session,
@@ -58,28 +72,43 @@ def create_lost_found(
     if post.user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only attach Lost & Found details to your own post",
+            detail=(
+                "You can only attach Lost & Found "
+                "details to your own post"
+            ),
         )
 
     existing = (
         db.query(LostFound)
-        .filter(LostFound.post_id == lost_found_data.post_id)
+        .filter(
+            LostFound.post_id
+            == lost_found_data.post_id
+        )
         .first()
     )
 
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Lost & Found details already exist for this post",
+            detail=(
+                "Lost & Found details already exist "
+                "for this post"
+            ),
         )
 
     lost_found = LostFound(
         post_id=lost_found_data.post_id,
-        type=_validate_type(lost_found_data.type),
+        type=_validate_type(
+            lost_found_data.type
+        ),
         item_name=lost_found_data.item_name,
         description=lost_found_data.description,
-        last_seen_location=lost_found_data.last_seen_location,
-        contact_info=lost_found_data.contact_info,
+        last_seen_location=(
+            lost_found_data.last_seen_location
+        ),
+        contact_info=(
+            lost_found_data.contact_info
+        ),
         status="OPEN",
     )
 
@@ -90,32 +119,64 @@ def create_lost_found(
     return lost_found
 
 
+# ---------------------------------
+# List / Search / Filter
+# ---------------------------------
+
 def get_lost_found_items(
     db: Session,
     page: int = 1,
     limit: int = 20,
     item_type: str | None = None,
     item_status: str | None = None,
+    keyword: str | None = None,
 ):
     offset = (page - 1) * limit
 
     query = db.query(LostFound)
 
+    # Type filter
     if item_type is not None:
         query = query.filter(
-            LostFound.type == _validate_type(item_type)
+            LostFound.type
+            == _validate_type(item_type)
         )
 
+    # Status filter
     if item_status is not None:
         query = query.filter(
-            LostFound.status == _validate_status(item_status)
+            LostFound.status
+            == _validate_status(item_status)
         )
+
+    # Keyword search
+    if keyword is not None:
+        keyword = keyword.strip()
+
+        if keyword:
+            search_pattern = f"%{keyword}%"
+
+            query = query.filter(
+                or_(
+                    LostFound.item_name.ilike(
+                        search_pattern
+                    ),
+                    LostFound.description.ilike(
+                        search_pattern
+                    ),
+                    LostFound.last_seen_location.ilike(
+                        search_pattern
+                    ),
+                )
+            )
 
     total = query.count()
 
     items = (
         query
-        .order_by(LostFound.created_at.desc())
+        .order_by(
+            LostFound.created_at.desc()
+        )
         .offset(offset)
         .limit(limit)
         .all()
@@ -124,6 +185,10 @@ def get_lost_found_items(
     return items, total
 
 
+# ---------------------------------
+# Get Single Lost & Found
+# ---------------------------------
+
 def get_lost_found(
     db: Session,
     lost_found_id: int,
@@ -131,7 +196,9 @@ def get_lost_found(
 
     item = (
         db.query(LostFound)
-        .filter(LostFound.id == lost_found_id)
+        .filter(
+            LostFound.id == lost_found_id
+        )
         .first()
     )
 
@@ -144,6 +211,10 @@ def get_lost_found(
     return item
 
 
+# ---------------------------------
+# Update Lost & Found
+# ---------------------------------
+
 def update_lost_found(
     db: Session,
     lost_found_id: int,
@@ -151,7 +222,10 @@ def update_lost_found(
     lost_found_data: LostFoundUpdate,
 ) -> LostFound:
 
-    item = get_lost_found(db, lost_found_id)
+    item = get_lost_found(
+        db,
+        lost_found_id,
+    )
 
     post = (
         db.query(Post)
@@ -171,12 +245,19 @@ def update_lost_found(
         )
 
     if lost_found_data.item_name is not None:
-        item.item_name = lost_found_data.item_name
+        item.item_name = (
+            lost_found_data.item_name
+        )
 
     if lost_found_data.description is not None:
-        item.description = lost_found_data.description
+        item.description = (
+            lost_found_data.description
+        )
 
-    if lost_found_data.last_seen_location is not None:
+    if (
+        lost_found_data.last_seen_location
+        is not None
+    ):
         item.last_seen_location = (
             lost_found_data.last_seen_location
         )
@@ -196,6 +277,10 @@ def update_lost_found(
 
     return item
 
+
+# ---------------------------------
+# Delete Lost & Found
+# ---------------------------------
 
 def delete_lost_found(
     db: Session,

@@ -4,12 +4,14 @@ from sqlalchemy.orm import Session
 from app.core.security import get_current_user
 from app.db.database import get_db
 from app.models.user import User
+
 from app.schemas.lost_found import (
     LostFoundCreate,
     LostFoundListResponse,
     LostFoundResponse,
     LostFoundUpdate,
 )
+
 from app.services.lost_found_service import (
     create_lost_found,
     delete_lost_found,
@@ -25,6 +27,10 @@ router = APIRouter(
 )
 
 
+# ---------------------------------
+# Create Lost & Found
+# ---------------------------------
+
 @router.post(
     "/",
     response_model=LostFoundResponse,
@@ -32,7 +38,9 @@ router = APIRouter(
 )
 def create_new_lost_found(
     lost_found_data: LostFoundCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(
+        get_current_user
+    ),
     db: Session = Depends(get_db),
 ):
     return create_lost_found(
@@ -42,15 +50,39 @@ def create_new_lost_found(
     )
 
 
+# ---------------------------------
+# List / Search / Filter
+# ---------------------------------
+
 @router.get(
     "/",
     response_model=LostFoundListResponse,
 )
 def list_lost_found(
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
-    item_type: str | None = Query(None),
-    item_status: str | None = Query(None),
+    page: int = Query(
+        1,
+        ge=1,
+    ),
+    limit: int = Query(
+        20,
+        ge=1,
+        le=100,
+    ),
+    item_type: str | None = Query(
+        None,
+        min_length=1,
+        max_length=10,
+    ),
+    item_status: str | None = Query(
+        None,
+        min_length=1,
+        max_length=20,
+    ),
+    keyword: str | None = Query(
+        None,
+        min_length=1,
+        max_length=100,
+    ),
     db: Session = Depends(get_db),
 ):
     items, total = get_lost_found_items(
@@ -59,6 +91,7 @@ def list_lost_found(
         limit=limit,
         item_type=item_type,
         item_status=item_status,
+        keyword=keyword,
     )
 
     return {
@@ -71,6 +104,10 @@ def list_lost_found(
         },
     }
 
+
+# ---------------------------------
+# Get Single Lost & Found
+# ---------------------------------
 
 @router.get(
     "/{lost_found_id}",
@@ -86,6 +123,10 @@ def get_single_lost_found(
     )
 
 
+# ---------------------------------
+# Update Lost & Found
+# ---------------------------------
+
 @router.patch(
     "/{lost_found_id}",
     response_model=LostFoundResponse,
@@ -93,7 +134,9 @@ def get_single_lost_found(
 def update_existing_lost_found(
     lost_found_id: int,
     lost_found_data: LostFoundUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(
+        get_current_user
+    ),
     db: Session = Depends(get_db),
 ):
     return update_lost_found(
@@ -104,13 +147,19 @@ def update_existing_lost_found(
     )
 
 
+# ---------------------------------
+# Delete Lost & Found
+# ---------------------------------
+
 @router.delete(
     "/{lost_found_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 def delete_existing_lost_found(
     lost_found_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(
+        get_current_user
+    ),
     db: Session = Depends(get_db),
 ):
     delete_lost_found(
