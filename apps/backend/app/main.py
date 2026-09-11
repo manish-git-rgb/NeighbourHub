@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.auth import router as auth_router
 from app.api.routes.posts import router as posts_router
@@ -17,11 +18,35 @@ from app.api.routes.notifications import router as notifications_router
 from app.api.routes.admin import router as admin_router
 
 
+app = FastAPI(
+    title="NeighborHub API",
+)
 
 
+# -------------------------
+# CORS
+# -------------------------
 
-app = FastAPI(title="NeighborHub API")
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+]
 
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+
+
+# -------------------------
+# API Routers
+# -------------------------
 
 app.include_router(
     auth_router,
@@ -94,14 +119,28 @@ app.include_router(
 )
 
 app.include_router(
-    admin_router, prefix="/api/v1"
+    admin_router,
+    prefix="/api/v1",
 )
+
+
+# -------------------------
+# Root
+# -------------------------
 
 @app.get("/")
 def root():
-    return {"message": "NeighborHub API is running!"}
+    return {
+        "message": "NeighborHub API is running!"
+    }
 
+
+# -------------------------
+# Health Check
+# -------------------------
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy"}
+    return {
+        "status": "healthy"
+    }
