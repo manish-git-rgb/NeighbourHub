@@ -1,4 +1,5 @@
 import os
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
@@ -118,8 +119,10 @@ def test_admin_role_filter():
 # -------------------------
 
 def test_non_admin_cannot_access_admin_users():
-    username = "nonadmin_test"
-    email = "nonadmin_test@example.com"
+    unique_id = uuid4().hex[:8]
+
+    username = f"nonadmin_{unique_id}"
+    email = f"nonadmin_{unique_id}@example.com"
     password = "TestPassword123!"
 
     register_response = client.post(

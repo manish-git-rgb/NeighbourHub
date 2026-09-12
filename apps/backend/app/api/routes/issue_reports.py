@@ -3,8 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user
 from app.db.database import get_db
-from app.models.user import User
-
+from app.models.user import User 
 from app.schemas.issue_report import (
     IssueReportCreate,
     IssueReportListResponse,
@@ -12,8 +11,7 @@ from app.schemas.issue_report import (
     IssueReportUpdate,
     NearbyIssueReportResponse,
 )
-
-from app.services.issue_report_service import (
+from app.services.issue_report_service import ( 
     create_issue_report,
     delete_issue_report,
     get_issue_report,
@@ -188,9 +186,7 @@ def nearby_issue_reports(
             NearbyIssueReportResponse(
                 id=issue_report.id,
                 user_id=issue_report.user_id,
-                neighborhood_id=(
-                    issue_report.neighborhood_id
-                ),
+                neighborhood_id=issue_report.neighborhood_id,
                 title=issue_report.title,
                 description=issue_report.description,
                 category=issue_report.category,
@@ -246,7 +242,7 @@ def update_existing_issue_report(
     return update_issue_report(
         db=db,
         issue_id=issue_id,
-        user_id=current_user.id,
+        current_user=current_user,
         issue_data=issue_data,
     )
 

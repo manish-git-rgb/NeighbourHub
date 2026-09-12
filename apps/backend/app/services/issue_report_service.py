@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.issue_report import IssueReport
 from app.models.neighborhood import Neighborhood
+from app.models.user import User
 from app.schemas.issue_report import (
     IssueReportCreate,
     IssueReportUpdate,
@@ -18,6 +19,11 @@ VALID_STATUSES = {
     "IN_PROGRESS",
     "RESOLVED",
     "REJECTED",
+}
+
+STAFF_ROLES = {
+    "ADMIN",
+    "MODERATOR",
 }
 
 
@@ -320,7 +326,7 @@ def get_nearby_issue_reports(
 def update_issue_report(
     db: Session,
     issue_id: int,
-    user_id: int,
+    current_user: User,
     issue_data: IssueReportUpdate,
 ) -> IssueReport:
 
@@ -329,7 +335,15 @@ def update_issue_report(
         issue_id,
     )
 
-    if issue_report.user_id != user_id:
+    is_owner = issue_report.user_id == current_user.id
+    is_staff = current_user.role in STAFF_ROLES
+
+    # ---------------------------------
+    # Permission checks
+    # ---------------------------------
+
+    # Non-owner users cannot modify issue details.
+    if not is_owner and not is_staff:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
@@ -338,9 +352,45 @@ def update_issue_report(
             ),
         )
 
-    # Keep the old status so we can detect
-    # whether the status actually changed.
+    # A staff member who is not the owner may only
+    # change the status.
+    if not is_owner and is_staff:
+        has_non_status_update = any(
+            value is not None
+            for value in [
+                issue_data.neighborhood_id,
+                issue_data.title,
+                issue_data.description,
+                issue_data.category,
+                issue_data.latitude,
+                issue_data.longitude,
+            ]
+        )
+
+        if has_non_status_update:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "Admins and moderators can only "
+                    "change the issue status"
+                ),
+            )
+
+        if issue_data.status is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No update fields provided",
+            )
+
+    # ---------------------------------
+    # Remember old status
+    # ---------------------------------
+
     old_status = issue_report.status
+
+    # ---------------------------------
+    # Update details
+    # ---------------------------------
 
     if issue_data.neighborhood_id is not None:
         _validate_neighborhood(
@@ -365,12 +415,29 @@ def update_issue_report(
             issue_data.category
         )
 
+    # ---------------------------------
+    # Update status
+    # ---------------------------------
+
     if issue_data.status is not None:
         new_status = _validate_status(
             issue_data.status
         )
 
+        # Only staff or the owner can submit a status
+        # change. For production behavior, status changes
+        # should normally be done by staff.
+        if not is_owner and not is_staff:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not allowed to change issue status",
+            )
+
         issue_report.status = new_status
+
+    # ---------------------------------
+    # Update location
+    # ---------------------------------
 
     if (
         issue_data.latitude is not None
