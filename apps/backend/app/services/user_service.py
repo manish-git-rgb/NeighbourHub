@@ -1,10 +1,7 @@
+from datetime import datetime, timedelta, timezone
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
-
-from app.models.user import User
-from app.schemas.user import UserCreate, UserLogin, UserUpdate
-
-from datetime import datetime, timedelta, timezone
 
 from app.core.security import (
     create_refresh_token,
@@ -12,9 +9,15 @@ from app.core.security import (
     verify_password,
 )
 from app.models.refresh_token import RefreshToken
+from app.models.user import User
+from app.schemas.user import UserCreate, UserLogin, UserUpdate
+from app.services.notification_service import create_notification
 
 
-def create_user(db: Session, user_data: UserCreate) -> User:
+def create_user(
+    db: Session,
+    user_data: UserCreate,
+) -> User:
     existing_username = (
         db.query(User)
         .filter(User.username == user_data.username)
@@ -55,7 +58,10 @@ def create_user(db: Session, user_data: UserCreate) -> User:
     return user
 
 
-def authenticate_user(db: Session, login_data: UserLogin) -> User:
+def authenticate_user(
+    db: Session,
+    login_data: UserLogin,
+) -> User:
     user = (
         db.query(User)
         .filter(User.email == login_data.email)
@@ -79,7 +85,12 @@ def authenticate_user(db: Session, login_data: UserLogin) -> User:
 
     return user
 
-def save_refresh_token(db: Session, user_id: int, token: str) -> RefreshToken:
+
+def save_refresh_token(
+    db: Session,
+    user_id: int,
+    token: str,
+) -> RefreshToken:
     refresh_token = RefreshToken(
         user_id=user_id,
         token=token,
@@ -114,17 +125,21 @@ def revoke_refresh_token(
         return False
 
     refresh_token.revoked = True
-
     db.commit()
 
     return True
+
 
 def update_user(
     db: Session,
     current_user: User,
     user_data: UserUpdate,
 ) -> User:
+    profile_changed = False
 
+    # ---------------------------------
+    # Username
+    # ---------------------------------
     if user_data.username is not None:
         existing_username = (
             db.query(User)
@@ -141,8 +156,13 @@ def update_user(
                 detail="Username already taken",
             )
 
-        current_user.username = user_data.username
+        if current_user.username != user_data.username:
+            current_user.username = user_data.username
+            profile_changed = True
 
+    # ---------------------------------
+    # Email
+    # ---------------------------------
     if user_data.email is not None:
         existing_email = (
             db.query(User)
@@ -159,18 +179,50 @@ def update_user(
                 detail="Email already registered",
             )
 
-        current_user.email = user_data.email
+        if current_user.email != user_data.email:
+            current_user.email = user_data.email
+            profile_changed = True
 
+    # ---------------------------------
+    # Name
+    # ---------------------------------
     if user_data.name is not None:
-        current_user.name = user_data.name
+        if current_user.name != user_data.name:
+            current_user.name = user_data.name
+            profile_changed = True
 
+    # ---------------------------------
+    # Profile Image
+    # ---------------------------------
     if user_data.profile_image is not None:
-        current_user.profile_image = user_data.profile_image
+        if current_user.profile_image != user_data.profile_image:
+            current_user.profile_image = user_data.profile_image
+            profile_changed = True
 
+    # ---------------------------------
+    # Bio
+    # ---------------------------------
     if user_data.bio is not None:
-        current_user.bio = user_data.bio
+        if current_user.bio != user_data.bio:
+            current_user.bio = user_data.bio
+            profile_changed = True
 
+    # ---------------------------------
+    # Save User
+    # ---------------------------------
     db.commit()
     db.refresh(current_user)
+
+    # ---------------------------------
+    # Create Notification
+    # ---------------------------------
+    if profile_changed:
+        create_notification(
+            db=db,
+            user_id=current_user.id,
+            notification_type="PROFILE_UPDATE",
+            title="Profile updated",
+            message="Your NeighborHub profile was updated successfully.",
+        )
 
     return current_user

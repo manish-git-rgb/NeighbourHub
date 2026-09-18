@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user
@@ -31,22 +31,21 @@ router = APIRouter(
 )
 def create_new_notification(
     notification_data: NotificationCreate,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
-    # For now, prevent users from creating notifications
-    # for other users.
+    current_user: User = Depends(get_current_user),
+): 
     if notification_data.user_id != current_user.id:
-        from fastapi import HTTPException
-
-        raise HTTPException(
+        raise HTTPException( 
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only create notifications for yourself",
         )
 
     return create_notification(
         db=db,
-        notification_data=notification_data,
+        user_id=notification_data.user_id,
+        notification_type=notification_data.type,
+        title=notification_data.title,
+        message=notification_data.message,
     )
 
 

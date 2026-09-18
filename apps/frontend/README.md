@@ -29,3 +29,16 @@ Zustand
 14. Moderation
 15. Admin dashboard
 16. Responsive/mobile polish
+
+
+cd /d D:\study\proj\NeighbourHub\apps\backend
+.\env\Scripts\activate.bat
+uvicorn app.main:app --reload
+
+
+cd /d D:\study\proj\NeighbourHub\apps\frontend
+npm run dev
+
+
+Email:    neighboruser@example.com
+Password: TestPassword123
