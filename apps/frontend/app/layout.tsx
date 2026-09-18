@@ -1,9 +1,11 @@
-import type { Metadata } from 'next';
-import './globals.css';
+import type { Metadata } from "next";
+
+import "./globals.css";
+import "leaflet/dist/leaflet.css";
 
 export const metadata: Metadata = {
-  title: 'NeighborHub',
-  description: 'Hyperlocal community platform',
+  title: "NeighborHub",
+  description: "Hyperlocal community platform",
 };
 
 export default function RootLayout({

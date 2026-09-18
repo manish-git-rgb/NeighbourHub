@@ -1,14 +1,30 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { clearTokens } from "@/lib/auth";
+import { api } from "@/lib/api";
 
-const navItems = [
+type UserRole = "USER" | "MODERATOR" | "ADMIN";
+
+type CurrentUser = {
+  id: number;
+  name: string;
+  username: string;
+  email: string;
+  role: string;
+};
+
+const baseNavItems = [
   {
     name: "Dashboard",
     href: "/dashboard",
+  },
+  {
+    name: "Map",
+    href: "/map",
   },
   {
     name: "Posts",
@@ -44,9 +60,61 @@ const navItems = [
   },
 ];
 
+const moderationNavItem = {
+  name: "Moderation",
+  href: "/moderation",
+};
+
+const adminNavItem = {
+  name: "Admin",
+  href: "/admin",
+};
+
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
+
+  const [role, setRole] = useState<UserRole>("USER");
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadRole() {
+      try {
+        const response = await api.get<CurrentUser>("/users/me");
+
+        if (!mounted) return;
+
+        const userRole = response.data.role.toUpperCase();
+
+        if (
+          userRole === "USER" ||
+          userRole === "MODERATOR" ||
+          userRole === "ADMIN"
+        ) {
+          setRole(userRole);
+        }
+      } catch {
+        // Keep the default USER navigation when the user cannot be loaded.
+      }
+    }
+
+    loadRole();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const navItems = [...baseNavItems];
+
+  if (role === "MODERATOR" || role === "ADMIN") {
+    navItems.splice(navItems.length - 1, 0, moderationNavItem);
+  }
+
+  if (role === "ADMIN") {
+    navItems.splice(navItems.length - 1, 0, adminNavItem);
+  }
 
   function handleLogout() {
     clearTokens();
