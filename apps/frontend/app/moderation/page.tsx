@@ -47,11 +47,15 @@ interface CurrentUser {
 
 const MODERATOR_ROLES = ["MODERATOR", "ADMIN"];
 
+/*
+ * IMPORTANT:
+ * These values must exactly match the backend.
+ */
 const STATUS_OPTIONS = [
   "OPEN",
-  "IN_REVIEW",
+  "UNDER_REVIEW",
   "RESOLVED",
-  "DISMISSED",
+  "REJECTED",
 ];
 
 function getErrorMessage(error: unknown): string {
@@ -78,14 +82,37 @@ function statusClass(status: string): string {
   switch (status.toUpperCase()) {
     case "OPEN":
       return "bg-red-50 text-red-700";
-    case "IN_REVIEW":
+
+    case "UNDER_REVIEW":
       return "bg-amber-50 text-amber-700";
+
     case "RESOLVED":
       return "bg-green-50 text-green-700";
-    case "DISMISSED":
+
+    case "REJECTED":
       return "bg-slate-100 text-slate-700";
+
     default:
       return "bg-slate-100 text-slate-700";
+  }
+}
+
+function formatStatus(status: string): string {
+  switch (status.toUpperCase()) {
+    case "UNDER_REVIEW":
+      return "Under Review";
+
+    case "OPEN":
+      return "Open";
+
+    case "RESOLVED":
+      return "Resolved";
+
+    case "REJECTED":
+      return "Rejected";
+
+    default:
+      return status;
   }
 }
 
@@ -93,15 +120,19 @@ export default function ModerationPage() {
   // ---------------------------------
   // Current user
   // ---------------------------------
+
   const [currentUser, setCurrentUser] =
     useState<CurrentUser | null>(null);
 
-  const [userLoading, setUserLoading] = useState(true);
+  const [userLoading, setUserLoading] =
+    useState(true);
 
   // ---------------------------------
   // Moderation cases
   // ---------------------------------
-  const [cases, setCases] = useState<ModerationCase[]>([]);
+
+  const [cases, setCases] =
+    useState<ModerationCase[]>([]);
 
   const [casesLoading, setCasesLoading] =
     useState(false);
@@ -109,6 +140,7 @@ export default function ModerationPage() {
   const [total, setTotal] = useState(0);
 
   const [page, setPage] = useState(1);
+
   const limit = 20;
 
   const [caseStatusFilter, setCaseStatusFilter] =
@@ -117,6 +149,7 @@ export default function ModerationPage() {
   // ---------------------------------
   // UI state
   // ---------------------------------
+
   const [showCreateForm, setShowCreateForm] =
     useState(false);
 
@@ -127,11 +160,13 @@ export default function ModerationPage() {
     useState<number | null>(null);
 
   const [error, setError] = useState("");
+
   const [success, setSuccess] = useState("");
 
   // ---------------------------------
   // Create form
   // ---------------------------------
+
   const [createForm, setCreateForm] = useState({
     post_id: "",
     comment_id: "",
@@ -142,6 +177,7 @@ export default function ModerationPage() {
   // ---------------------------------
   // Load current user
   // ---------------------------------
+
   useEffect(() => {
     async function loadCurrentUser() {
       try {
@@ -165,6 +201,7 @@ export default function ModerationPage() {
   // ---------------------------------
   // Role helper
   // ---------------------------------
+
   const isModerator = Boolean(
     currentUser &&
       MODERATOR_ROLES.includes(
@@ -175,6 +212,7 @@ export default function ModerationPage() {
   // ---------------------------------
   // Load moderation cases
   // ---------------------------------
+
   const loadCases = useCallback(
     async (targetPage = page) => {
       if (!isModerator) {
@@ -201,12 +239,15 @@ export default function ModerationPage() {
           );
 
         setCases(response.data.data);
+
         setTotal(
           response.data.pagination.total
         );
       } catch (err) {
         setError(getErrorMessage(err));
+
         setCases([]);
+
         setTotal(0);
       } finally {
         setCasesLoading(false);
@@ -222,6 +263,7 @@ export default function ModerationPage() {
   // ---------------------------------
   // Load cases after user is known
   // ---------------------------------
+
   useEffect(() => {
     if (!userLoading && isModerator) {
       loadCases(1);
@@ -235,6 +277,7 @@ export default function ModerationPage() {
   // ---------------------------------
   // Create moderation report
   // ---------------------------------
+
   async function handleCreate(
     event: FormEvent<HTMLFormElement>
   ) {
@@ -243,12 +286,18 @@ export default function ModerationPage() {
     setError("");
     setSuccess("");
 
-    const postId = createForm.post_id.trim();
+    const postId =
+      createForm.post_id.trim();
+
     const commentId =
       createForm.comment_id.trim();
 
     let parsedPostId: number | null = null;
-    let parsedCommentId: number | null = null;
+
+    let parsedCommentId: number | null =
+      null;
+
+    // Validate post ID
 
     if (postId) {
       parsedPostId = Number(postId);
@@ -260,9 +309,12 @@ export default function ModerationPage() {
         setError(
           "Post ID must be a valid positive number."
         );
+
         return;
       }
     }
+
+    // Validate comment ID
 
     if (commentId) {
       parsedCommentId = Number(commentId);
@@ -274,12 +326,29 @@ export default function ModerationPage() {
         setError(
           "Comment ID must be a valid positive number."
         );
+
         return;
       }
     }
 
+    // At least one target should be provided
+
+    if (
+      parsedPostId === null &&
+      parsedCommentId === null
+    ) {
+      setError(
+        "Please provide either a Post ID or a Comment ID."
+      );
+
+      return;
+    }
+
+    // Validate reason
+
     if (!createForm.reason.trim()) {
       setError("Reason is required.");
+
       return;
     }
 
@@ -289,9 +358,11 @@ export default function ModerationPage() {
       await api.post("/moderation/", {
         post_id: parsedPostId,
         comment_id: parsedCommentId,
-        reason: createForm.reason.trim(),
+        reason:
+          createForm.reason.trim(),
         description:
-          createForm.description.trim() || null,
+          createForm.description.trim() ||
+          null,
       });
 
       setSuccess(
@@ -308,8 +379,9 @@ export default function ModerationPage() {
       setShowCreateForm(false);
 
       if (isModerator) {
-        await loadCases(1);
         setPage(1);
+
+        await loadCases(1);
       }
     } catch (err) {
       setError(getErrorMessage(err));
@@ -321,12 +393,15 @@ export default function ModerationPage() {
   // ---------------------------------
   // Update moderation status
   // ---------------------------------
+
   async function handleStatusUpdate(
     caseId: number,
     newStatus: string
   ) {
     setUpdatingId(caseId);
+
     setError("");
+
     setSuccess("");
 
     try {
@@ -343,7 +418,9 @@ export default function ModerationPage() {
 
       await loadCases(page);
 
-      if (selectedCase?.id === caseId) {
+      if (
+        selectedCase?.id === caseId
+      ) {
         setSelectedCase(null);
       }
     } catch (err) {
@@ -356,12 +433,15 @@ export default function ModerationPage() {
   // ---------------------------------
   // Pagination
   // ---------------------------------
+
   const totalPages = Math.max(
     1,
     Math.ceil(total / limit)
   );
 
-  async function goToPage(nextPage: number) {
+  async function goToPage(
+    nextPage: number
+  ) {
     if (
       nextPage < 1 ||
       nextPage > totalPages
@@ -370,50 +450,65 @@ export default function ModerationPage() {
     }
 
     setPage(nextPage);
+
     await loadCases(nextPage);
   }
 
   // ---------------------------------
   // Clear filter
   // ---------------------------------
+
   async function clearStatusFilter() {
     setCaseStatusFilter("");
+
     setPage(1);
 
-    if (isModerator) {
-      try {
-        setCasesLoading(true);
-        setError("");
+    if (!isModerator) {
+      return;
+    }
 
-        const response =
-          await api.get<ModerationListResponse>(
-            "/moderation/",
-            {
-              params: {
-                page: 1,
-                limit,
-              },
-            }
-          );
+    try {
+      setCasesLoading(true);
 
-        setCases(response.data.data);
-        setTotal(
-          response.data.pagination.total
+      setError("");
+
+      const response =
+        await api.get<ModerationListResponse>(
+          "/moderation/",
+          {
+            params: {
+              page: 1,
+              limit,
+            },
+          }
         );
-      } catch (err) {
-        setError(getErrorMessage(err));
-      } finally {
-        setCasesLoading(false);
-      }
+
+      setCases(response.data.data);
+
+      setTotal(
+        response.data.pagination.total
+      );
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setCasesLoading(false);
     }
   }
+
+  // ---------------------------------
+  // Render
+  // ---------------------------------
 
   return (
     <main className="min-h-screen bg-slate-50">
       <Navbar />
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Header */}
+
+        {/* ============================= */}
+        {/* HEADER */}
+        {/* ============================= */}
+
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">
@@ -421,8 +516,9 @@ export default function ModerationPage() {
             </h1>
 
             <p className="mt-2 max-w-2xl text-slate-600">
-              Report inappropriate community content
-              and help keep NeighborHub useful and safe.
+              Report inappropriate community
+              content and help keep NeighborHub
+              useful and safe.
             </p>
           </div>
 
@@ -431,19 +527,28 @@ export default function ModerationPage() {
               <span className="text-slate-500">
                 Current role:
               </span>{" "}
+
               <span className="font-semibold text-slate-900">
-                {currentUser?.role || "Unknown"}
+                {currentUser?.role ||
+                  "Unknown"}
               </span>
             </div>
           )}
         </div>
 
-        {/* Messages */}
+        {/* ============================= */}
+        {/* ERROR */}
+        {/* ============================= */}
+
         {error && (
           <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         )}
+
+        {/* ============================= */}
+        {/* SUCCESS */}
+        {/* ============================= */}
 
         {success && (
           <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -451,17 +556,22 @@ export default function ModerationPage() {
           </div>
         )}
 
-        {/* Create report */}
+        {/* ============================= */}
+        {/* REPORT CONTENT */}
+        {/* ============================= */}
+
         <section className="mb-8 rounded-2xl border border-slate-200 bg-white shadow-sm">
+
           <div className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+
             <div>
               <h2 className="text-xl font-semibold text-slate-900">
                 Report Content
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Submit a moderation report for a post or
-                comment.
+                Submit a moderation report for a
+                post or comment.
               </p>
             </div>
 
@@ -471,7 +581,9 @@ export default function ModerationPage() {
                 setShowCreateForm(
                   (current) => !current
                 );
+
                 setError("");
+
                 setSuccess("");
               }}
               className="rounded-lg bg-slate-900 px-5 py-2.5 font-medium text-white hover:bg-slate-800"
@@ -484,11 +596,14 @@ export default function ModerationPage() {
 
           {showCreateForm && (
             <div className="border-t border-slate-100 p-6">
+
               <form
                 onSubmit={handleCreate}
                 className="grid gap-5 md:grid-cols-2"
               >
+
                 {/* Post ID */}
+
                 <div>
                   <label className="mb-2 block text-sm font-medium text-slate-700">
                     Post ID
@@ -499,11 +614,14 @@ export default function ModerationPage() {
                     min="1"
                     value={createForm.post_id}
                     onChange={(event) =>
-                      setCreateForm((prev) => ({
-                        ...prev,
-                        post_id:
-                          event.target.value,
-                      }))
+                      setCreateForm(
+                        (prev) => ({
+                          ...prev,
+                          post_id:
+                            event.target
+                              .value,
+                        })
+                      )
                     }
                     placeholder="Optional"
                     className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
@@ -511,6 +629,7 @@ export default function ModerationPage() {
                 </div>
 
                 {/* Comment ID */}
+
                 <div>
                   <label className="mb-2 block text-sm font-medium text-slate-700">
                     Comment ID
@@ -519,13 +638,18 @@ export default function ModerationPage() {
                   <input
                     type="number"
                     min="1"
-                    value={createForm.comment_id}
+                    value={
+                      createForm.comment_id
+                    }
                     onChange={(event) =>
-                      setCreateForm((prev) => ({
-                        ...prev,
-                        comment_id:
-                          event.target.value,
-                      }))
+                      setCreateForm(
+                        (prev) => ({
+                          ...prev,
+                          comment_id:
+                            event.target
+                              .value,
+                        })
+                      )
                     }
                     placeholder="Optional"
                     className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
@@ -533,6 +657,7 @@ export default function ModerationPage() {
                 </div>
 
                 {/* Reason */}
+
                 <div className="md:col-span-2">
                   <label className="mb-2 block text-sm font-medium text-slate-700">
                     Reason
@@ -541,13 +666,18 @@ export default function ModerationPage() {
                   <input
                     required
                     maxLength={100}
-                    value={createForm.reason}
+                    value={
+                      createForm.reason
+                    }
                     onChange={(event) =>
-                      setCreateForm((prev) => ({
-                        ...prev,
-                        reason:
-                          event.target.value,
-                      }))
+                      setCreateForm(
+                        (prev) => ({
+                          ...prev,
+                          reason:
+                            event.target
+                              .value,
+                        })
+                      )
                     }
                     placeholder="e.g. Spam, harassment, misleading content"
                     className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
@@ -555,6 +685,7 @@ export default function ModerationPage() {
                 </div>
 
                 {/* Description */}
+
                 <div className="md:col-span-2">
                   <label className="mb-2 block text-sm font-medium text-slate-700">
                     Description
@@ -562,23 +693,33 @@ export default function ModerationPage() {
 
                   <textarea
                     rows={5}
-                    value={createForm.description}
+                    value={
+                      createForm.description
+                    }
                     onChange={(event) =>
-                      setCreateForm((prev) => ({
-                        ...prev,
-                        description:
-                          event.target.value,
-                      }))
+                      setCreateForm(
+                        (prev) => ({
+                          ...prev,
+                          description:
+                            event.target
+                              .value,
+                        })
+                      )
                     }
                     placeholder="Provide additional context..."
                     className="w-full resize-y rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-slate-500"
                   />
                 </div>
 
+                {/* Buttons */}
+
                 <div className="flex gap-3 md:col-span-2">
+
                   <button
                     type="submit"
-                    disabled={updatingId === -1}
+                    disabled={
+                      updatingId === -1
+                    }
                     className="rounded-lg bg-slate-900 px-5 py-2.5 font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {updatingId === -1
@@ -595,45 +736,69 @@ export default function ModerationPage() {
                   >
                     Cancel
                   </button>
+
                 </div>
               </form>
 
               <p className="mt-4 text-xs text-slate-400">
-                Provide the relevant Post ID or Comment ID
-                from the content you want to report.
+                Provide the relevant Post ID or
+                Comment ID from the content you
+                want to report.
               </p>
             </div>
           )}
         </section>
 
-        {/* Moderator panel */}
+        {/* ============================= */}
+        {/* MODERATOR QUEUE */}
+        {/* ============================= */}
+
         {!userLoading && isModerator && (
           <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-            {/* Panel header */}
+
+            {/* Panel Header */}
+
             <div className="border-b border-slate-100 p-6">
+
               <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+
                 <div>
                   <h2 className="text-xl font-semibold text-slate-900">
                     Moderation Queue
                   </h2>
 
                   <p className="mt-1 text-sm text-slate-500">
-                    Review and update reported content.
+                    Review and update reported
+                    content.
                   </p>
                 </div>
 
                 <div className="flex flex-wrap gap-3">
-                  <select
-                    value={caseStatusFilter}
-                    onChange={async (event) => {
-                      const value =
-                        event.target.value;
 
-                      setCaseStatusFilter(value);
+                  {/* Status Filter */}
+
+                  <select
+                    value={
+                      caseStatusFilter
+                    }
+                    onChange={async (
+                      event
+                    ) => {
+                      const value =
+                        event.target
+                          .value;
+
+                      setCaseStatusFilter(
+                        value
+                      );
+
                       setPage(1);
 
                       try {
-                        setCasesLoading(true);
+                        setCasesLoading(
+                          true
+                        );
+
                         setError("");
 
                         const response =
@@ -651,19 +816,25 @@ export default function ModerationPage() {
                           );
 
                         setCases(
-                          response.data.data
+                          response.data
+                            .data
                         );
 
                         setTotal(
                           response.data
-                            .pagination.total
+                            .pagination
+                            .total
                         );
                       } catch (err) {
                         setError(
-                          getErrorMessage(err)
+                          getErrorMessage(
+                            err
+                          )
                         );
                       } finally {
-                        setCasesLoading(false);
+                        setCasesLoading(
+                          false
+                        );
                       }
                     }}
                     className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm outline-none"
@@ -675,14 +846,22 @@ export default function ModerationPage() {
                     {STATUS_OPTIONS.map(
                       (statusValue) => (
                         <option
-                          key={statusValue}
-                          value={statusValue}
+                          key={
+                            statusValue
+                          }
+                          value={
+                            statusValue
+                          }
                         >
-                          {statusValue}
+                          {formatStatus(
+                            statusValue
+                          )}
                         </option>
                       )
                     )}
                   </select>
+
+                  {/* Refresh */}
 
                   <button
                     type="button"
@@ -694,21 +873,29 @@ export default function ModerationPage() {
                     Refresh
                   </button>
 
+                  {/* Clear */}
+
                   <button
                     type="button"
-                    onClick={clearStatusFilter}
+                    onClick={
+                      clearStatusFilter
+                    }
                     className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
                   >
                     Clear
                   </button>
+
                 </div>
               </div>
             </div>
 
-            {/* Queue body */}
+            {/* Queue Body */}
+
             <div className="p-6">
+
               {casesLoading ? (
                 <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+
                   {[1, 2, 3, 4, 5, 6].map(
                     (value) => (
                       <div
@@ -717,26 +904,35 @@ export default function ModerationPage() {
                       />
                     )
                   )}
+
                 </div>
               ) : cases.length === 0 ? (
+
                 <div className="rounded-xl border border-dashed border-slate-300 p-12 text-center">
+
                   <div className="text-4xl">
                     ✅
                   </div>
 
                   <h3 className="mt-4 text-lg font-semibold text-slate-900">
-                    No moderation cases found
+                    No moderation cases
+                    found
                   </h3>
 
                   <p className="mt-2 text-sm text-slate-500">
-                    The moderation queue is empty for
-                    the selected filter.
+                    The moderation queue is
+                    empty for the selected
+                    filter.
                   </p>
+
                 </div>
               ) : (
+
                 <>
                   {/* Summary */}
+
                   <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+
                     <p className="text-sm text-slate-600">
                       Showing{" "}
                       <span className="font-semibold text-slate-900">
@@ -748,173 +944,229 @@ export default function ModerationPage() {
                       </span>{" "}
                       cases
                     </p>
+
                   </div>
 
                   {/* Cases */}
+
                   <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                    {cases.map((moderationCase) => (
-                      <article
-                        key={moderationCase.id}
-                        className="rounded-xl border border-slate-200 bg-slate-50 p-5"
-                      >
-                        {/* Header */}
-                        <div className="mb-4 flex items-start justify-between gap-3">
-                          <div>
-                            <h3 className="font-semibold text-slate-900">
-                              Case #
-                              {moderationCase.id}
-                            </h3>
 
-                            <p className="mt-1 text-xs text-slate-500">
-                              Reporter #
-                              {
-                                moderationCase.reporter_id
-                              }
-                            </p>
+                    {cases.map(
+                      (moderationCase) => (
+                        <article
+                          key={
+                            moderationCase.id
+                          }
+                          className="rounded-xl border border-slate-200 bg-slate-50 p-5"
+                        >
+
+                          {/* Header */}
+
+                          <div className="mb-4 flex items-start justify-between gap-3">
+
+                            <div>
+                              <h3 className="font-semibold text-slate-900">
+                                Case #
+                                {
+                                  moderationCase.id
+                                }
+                              </h3>
+
+                              <p className="mt-1 text-xs text-slate-500">
+                                Reporter #
+                                {
+                                  moderationCase.reporter_id
+                                }
+                              </p>
+                            </div>
+
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClass(
+                                moderationCase.status
+                              )}`}
+                            >
+                              {formatStatus(
+                                moderationCase.status
+                              )}
+                            </span>
+
                           </div>
 
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClass(
-                              moderationCase.status
-                            )}`}
-                          >
-                            {moderationCase.status}
-                          </span>
-                        </div>
+                          {/* Target */}
 
-                        {/* Target */}
-                        <div className="mb-4 rounded-lg bg-white p-3 ring-1 ring-slate-200">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Reported Content
-                          </p>
+                          <div className="mb-4 rounded-lg bg-white p-3 ring-1 ring-slate-200">
 
-                          <div className="mt-2 space-y-1 text-sm text-slate-700">
-                            <p>
-                              <span className="font-medium">
-                                Post:
-                              </span>{" "}
-                              {moderationCase.post_id !==
-                              null
-                                ? `#${moderationCase.post_id}`
-                                : "None"}
-                            </p>
-
-                            <p>
-                              <span className="font-medium">
-                                Comment:
-                              </span>{" "}
-                              {moderationCase.comment_id !==
-                              null
-                                ? `#${moderationCase.comment_id}`
-                                : "None"}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Reason */}
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                            Reason
-                          </p>
-
-                          <p className="mt-1 text-sm font-medium text-slate-800">
-                            {moderationCase.reason}
-                          </p>
-                        </div>
-
-                        {/* Description */}
-                        {moderationCase.description && (
-                          <div className="mt-4">
                             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                              Description
+                              Reported Content
                             </p>
 
-                            <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                            <div className="mt-2 space-y-1 text-sm text-slate-700">
+
+                              <p>
+                                <span className="font-medium">
+                                  Post:
+                                </span>{" "}
+
+                                {moderationCase.post_id !==
+                                null
+                                  ? `#${moderationCase.post_id}`
+                                  : "None"}
+                              </p>
+
+                              <p>
+                                <span className="font-medium">
+                                  Comment:
+                                </span>{" "}
+
+                                {moderationCase.comment_id !==
+                                null
+                                  ? `#${moderationCase.comment_id}`
+                                  : "None"}
+                              </p>
+
+                            </div>
+                          </div>
+
+                          {/* Reason */}
+
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                              Reason
+                            </p>
+
+                            <p className="mt-1 text-sm font-medium text-slate-800">
                               {
-                                moderationCase.description
+                                moderationCase.reason
                               }
                             </p>
                           </div>
-                        )}
 
-                        {/* Dates */}
-                        <div className="mt-5 space-y-1 border-t border-slate-200 pt-4 text-xs text-slate-400">
-                          <p>
-                            Created{" "}
-                            {formatDate(
-                              moderationCase.created_at
-                            )}
-                          </p>
+                          {/* Description */}
 
-                          <p>
-                            Updated{" "}
-                            {formatDate(
-                              moderationCase.updated_at
-                            )}
-                          </p>
-                        </div>
+                          {moderationCase.description && (
+                            <div className="mt-4">
 
-                        {/* Actions */}
-                        <div className="mt-5 flex flex-wrap gap-2 border-t border-slate-200 pt-4">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setSelectedCase(
-                                moderationCase
-                              )
-                            }
-                            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                          >
-                            View Details
-                          </button>
+                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                                Description
+                              </p>
 
-                          <select
-                            value=""
-                            disabled={
-                              updatingId ===
-                              moderationCase.id
-                            }
-                            onChange={(event) => {
-                              const value =
-                                event.target.value;
+                              <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                                {
+                                  moderationCase.description
+                                }
+                              </p>
 
-                              if (value) {
-                                handleStatusUpdate(
-                                  moderationCase.id,
-                                  value
-                                );
+                            </div>
+                          )}
+
+                          {/* Dates */}
+
+                          <div className="mt-5 space-y-1 border-t border-slate-200 pt-4 text-xs text-slate-400">
+
+                            <p>
+                              Created{" "}
+                              {formatDate(
+                                moderationCase.created_at
+                              )}
+                            </p>
+
+                            <p>
+                              Updated{" "}
+                              {formatDate(
+                                moderationCase.updated_at
+                              )}
+                            </p>
+
+                          </div>
+
+                          {/* Actions */}
+
+                          <div className="mt-5 flex flex-wrap gap-2 border-t border-slate-200 pt-4">
+
+                            {/* View */}
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSelectedCase(
+                                  moderationCase
+                                )
                               }
-                            }}
-                            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
-                          >
-                            <option value="">
-                              Change Status
-                            </option>
+                              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                              View Details
+                            </button>
 
-                            {STATUS_OPTIONS.map(
-                              (statusValue) => (
-                                <option
-                                  key={statusValue}
-                                  value={statusValue}
-                                >
-                                  {statusValue}
-                                </option>
-                              )
-                            )}
-                          </select>
-                        </div>
-                      </article>
-                    ))}
+                            {/* Change Status */}
+
+                            <select
+                              value=""
+                              disabled={
+                                updatingId ===
+                                moderationCase.id
+                              }
+                              onChange={(
+                                event
+                              ) => {
+                                const value =
+                                  event.target
+                                    .value;
+
+                                if (value) {
+                                  handleStatusUpdate(
+                                    moderationCase.id,
+                                    value
+                                  );
+                                }
+                              }}
+                              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+                            >
+                              <option value="">
+                                Change Status
+                              </option>
+
+                              {STATUS_OPTIONS.map(
+                                (
+                                  statusValue
+                                ) => (
+                                  <option
+                                    key={
+                                      statusValue
+                                    }
+                                    value={
+                                      statusValue
+                                    }
+                                  >
+                                    {formatStatus(
+                                      statusValue
+                                    )}
+                                  </option>
+                                )
+                              )}
+                            </select>
+
+                          </div>
+
+                        </article>
+                      )
+                    )}
+
                   </div>
 
                   {/* Pagination */}
+
                   {total > 0 && (
                     <div className="mt-8 flex items-center justify-center gap-4">
+
                       <button
                         type="button"
-                        disabled={page <= 1}
+                        disabled={
+                          page <= 1
+                        }
                         onClick={() =>
-                          goToPage(page - 1)
+                          goToPage(
+                            page - 1
+                          )
                         }
                         className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
                       >
@@ -922,51 +1174,72 @@ export default function ModerationPage() {
                       </button>
 
                       <span className="text-sm text-slate-600">
-                        Page {page} of {totalPages}
+                        Page {page} of{" "}
+                        {totalPages}
                       </span>
 
                       <button
                         type="button"
                         disabled={
-                          page >= totalPages
+                          page >=
+                          totalPages
                         }
                         onClick={() =>
-                          goToPage(page + 1)
+                          goToPage(
+                            page + 1
+                          )
                         }
                         className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Next
                       </button>
+
                     </div>
                   )}
+
                 </>
               )}
+
             </div>
           </section>
         )}
 
-        {/* Normal user information */}
+        {/* ============================= */}
+        {/* NORMAL USER */}
+        {/* ============================= */}
+
         {!userLoading && !isModerator && (
           <section className="rounded-2xl border border-blue-200 bg-blue-50 p-6">
+
             <h2 className="font-semibold text-blue-900">
               Community Reporting
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-blue-800">
-              Your submitted moderation reports are
-              reviewed by moderators or administrators.
-              The moderation queue is only available to
-              those roles.
+              Your submitted moderation reports
+              are reviewed by moderators or
+              administrators. The moderation queue
+              is only available to those roles.
             </p>
+
           </section>
         )}
+
       </div>
 
-      {/* Details modal */}
+      {/* ============================= */}
+      {/* DETAILS MODAL */}
+      {/* ============================= */}
+
       {selectedCase !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
+
+            {/* Modal Header */}
+
             <div className="mb-6 flex items-start justify-between gap-4">
+
               <div>
                 <h2 className="text-xl font-semibold text-slate-900">
                   Moderation Case #
@@ -987,10 +1260,15 @@ export default function ModerationPage() {
               >
                 ×
               </button>
+
             </div>
 
             <div className="space-y-5">
+
+              {/* Status */}
+
               <div className="flex items-center justify-between rounded-lg bg-slate-50 p-4">
+
                 <span className="text-sm font-medium text-slate-600">
                   Status
                 </span>
@@ -1000,18 +1278,27 @@ export default function ModerationPage() {
                     selectedCase.status
                   )}`}
                 >
-                  {selectedCase.status}
+                  {formatStatus(
+                    selectedCase.status
+                  )}
                 </span>
+
               </div>
 
+              {/* IDs */}
+
               <div className="grid gap-4 sm:grid-cols-2">
+
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Reporter ID
                   </p>
 
                   <p className="mt-1 text-sm text-slate-700">
-                    #{selectedCase.reporter_id}
+                    #
+                    {
+                      selectedCase.reporter_id
+                    }
                   </p>
                 </div>
 
@@ -1031,7 +1318,8 @@ export default function ModerationPage() {
                   </p>
 
                   <p className="mt-1 text-sm text-slate-700">
-                    {selectedCase.post_id !== null
+                    {selectedCase.post_id !==
+                    null
                       ? `#${selectedCase.post_id}`
                       : "None"}
                   </p>
@@ -1049,7 +1337,10 @@ export default function ModerationPage() {
                       : "None"}
                   </p>
                 </div>
+
               </div>
+
+              {/* Reason */}
 
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -1060,6 +1351,8 @@ export default function ModerationPage() {
                   {selectedCase.reason}
                 </p>
               </div>
+
+              {/* Description */}
 
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -1072,7 +1365,10 @@ export default function ModerationPage() {
                 </p>
               </div>
 
+              {/* Dates */}
+
               <div className="grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-2">
+
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Created
@@ -1096,15 +1392,21 @@ export default function ModerationPage() {
                     )}
                   </p>
                 </div>
+
               </div>
 
+              {/* Update Status */}
+
               <div className="border-t border-slate-100 pt-5">
+
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Update Status
                 </label>
 
                 <select
-                  value={selectedCase.status}
+                  value={
+                    selectedCase.status
+                  }
                   disabled={
                     updatingId ===
                     selectedCase.id
@@ -1121,16 +1423,6 @@ export default function ModerationPage() {
                         selectedCase.id,
                         value
                       );
-
-                      setSelectedCase(
-                        (current) =>
-                          current
-                            ? {
-                                ...current,
-                                status: value,
-                              }
-                            : current
-                      );
                     }
                   }}
                   className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 outline-none"
@@ -1138,18 +1430,29 @@ export default function ModerationPage() {
                   {STATUS_OPTIONS.map(
                     (statusValue) => (
                       <option
-                        key={statusValue}
-                        value={statusValue}
+                        key={
+                          statusValue
+                        }
+                        value={
+                          statusValue
+                        }
                       >
-                        {statusValue}
+                        {formatStatus(
+                          statusValue
+                        )}
                       </option>
                     )
                   )}
                 </select>
+
               </div>
+
             </div>
 
+            {/* Modal Footer */}
+
             <div className="mt-6 flex justify-end">
+
               <button
                 type="button"
                 onClick={() =>
@@ -1159,7 +1462,9 @@ export default function ModerationPage() {
               >
                 Close
               </button>
+
             </div>
+
           </div>
         </div>
       )}
